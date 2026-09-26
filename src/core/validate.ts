@@ -32,28 +32,33 @@ export function normalizeConfig(input: BuildingConfig, catalog: Catalog): Buildi
   const nearest = (want: number, from: number[], fallback: number) =>
     from.length ? from.reduce((a, b) => (Math.abs(b - want) < Math.abs(a - want) ? b : a)) : fallback;
 
-  if (!supplier.roofBuilds.includes(cfg.roofBuild)) cfg.roofBuild = supplier.roofBuilds[0];
   if (!model.allowedRoofStyles.includes(cfg.roofStyle)) cfg.roofStyle = model.allowedRoofStyles[0];
 
+  // Width first: for a manufacturer that prints several books, width is what
+  // decides which one applies, so everything below depends on it.
   cfg.width = nearest(Number(cfg.width) || size.minWidth, supplier.widths, supplier.widths[0]);
 
-  // Some suppliers fix frame spacing by width rather than offering it.
-  cfg.onCenter = supplier.onCenterFixedByWidth
-    ? supplier.onCenterFor(cfg.width)
-    : supplier.onCenters.includes(cfg.onCenter === 4 ? 4 : 5)
-      ? (cfg.onCenter === 4 ? 4 : 5)
-      : supplier.onCenters[0];
+  const roofBuilds = supplier.roofBuildsFor(cfg.width);
+  if (!roofBuilds.includes(cfg.roofBuild)) cfg.roofBuild = roofBuilds[0];
 
-  const lengths = supplier.lengthsFor(cfg.roofBuild, cfg.onCenter);
+  // Some suppliers fix frame spacing by width rather than offering it.
+  const onCenters = supplier.onCentersFor(cfg.width);
+  cfg.onCenter = supplier.onCenterFixedFor(cfg.width)
+    ? supplier.onCenterFor(cfg.width)
+    : onCenters.includes(cfg.onCenter === 4 ? 4 : 5)
+      ? (cfg.onCenter === 4 ? 4 : 5)
+      : onCenters[0];
+
+  const lengths = supplier.lengthsFor(cfg.roofBuild, cfg.onCenter, cfg.width);
   cfg.length = nearest(Number(cfg.length) || lengths[0], lengths, lengths[0] ?? 20);
 
   cfg.eaveHeight = nearest(
-    Number(cfg.eaveHeight) || supplier.standardLegHeight,
-    supplier.legHeights,
-    supplier.standardLegHeight,
+    Number(cfg.eaveHeight) || supplier.standardLegHeightFor(cfg.width),
+    supplier.legHeightsFor(cfg.width),
+    supplier.standardLegHeightFor(cfg.width),
   );
 
-  cfg.overhang = supplier.overhangs.includes(Number(cfg.overhang)) ? Number(cfg.overhang) : 0;
+  cfg.overhang = supplier.overhangsFor(cfg.width).includes(Number(cfg.overhang)) ? Number(cfg.overhang) : 0;
   cfg.wainscot = !!cfg.wainscot;
   cfg.sidesClosed = !!cfg.sidesClosed;
   cfg.endsClosed = clamp(Math.round(Number(cfg.endsClosed) || 0), 0, 2);
@@ -69,7 +74,7 @@ export function normalizeConfig(input: BuildingConfig, catalog: Catalog): Buildi
   // A roof build only comes in certain pitches, and the supplier constrains
   // that further — a regular roof is 3/12 only.
   const pitches = (build?.pitches ?? [])
-    .filter((p) => supplier.pitches.includes(p))
+    .filter((p) => supplier.pitchesFor(cfg.width).includes(p))
     .filter((p) => p >= (style?.minPitch ?? 1) && p <= (style?.maxPitch ?? 12));
   if (pitches.length > 0) {
     const want = Number(cfg.pitch) || model.basePitch;
@@ -78,10 +83,9 @@ export function normalizeConfig(input: BuildingConfig, catalog: Catalog): Buildi
     cfg.pitch = clamp(Number(cfg.pitch) || model.basePitch, style?.minPitch ?? 1, style?.maxPitch ?? 12);
   }
 
-  cfg.onCenter = cfg.onCenter === 4 ? 4 : 5;
-  // Certified buildings are built on 4' centers.
-  cfg.certified = !!cfg.certified;
-  if (cfg.certified) cfg.onCenter = 4;
+  // Every book these suppliers print ships certified, and frame spacing was
+  // already decided above from the supplier and width — don't re-derive it.
+  cfg.certified = supplier.alwaysCertified;
   cfg.gaugeId = catalog.gauges.some((g) => g.id === cfg.gaugeId) ? cfg.gaugeId : catalog.gauges[0].id;
   cfg.sidingOrientation = cfg.sidingOrientation === 'vertical' ? 'vertical' : 'horizontal';
 

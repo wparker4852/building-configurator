@@ -9,6 +9,7 @@ import { money } from '../core/pricing';
 import OpeningsEditor from './OpeningsEditor';
 import { Field, OptionRow, Section, Segmented, Slider, Stepper, Swatches } from './controls';
 import { SUPPLIERS, getSupplier } from '../core/suppliers';
+import SupplierPicker from './SupplierPicker';
 import { bowCount } from '../core/pricebook';
 
 
@@ -38,7 +39,7 @@ export default function OptionPanel({
   useEffect(() => setCategory(model.category), [model.category]);
 
   const pitches = (roofBuild?.pitches ?? [3, 4, 5])
-    .filter((p) => supplier.pitches.includes(p))
+    .filter((p) => supplier.pitchesFor(cfg.width).includes(p))
     .filter((p) => p >= (roofStyle?.minPitch ?? 1) && p <= (roofStyle?.maxPitch ?? 12));
 
   const addOns = catalog.addOns.filter((a) => audience === 'internal' || !a.internalOnly);
@@ -71,19 +72,16 @@ export default function OptionPanel({
         </div>
       </Section>
 
+      {audience === 'internal' && (
       <Section title="Supplier" hint={supplier.basePriceCovers}>
-        <div className="list">
-          {SUPPLIERS.map((s) => (
-            <OptionRow
-              key={s.id}
-              name={s.name}
-              detail={s.blurb}
-              selected={s.id === cfg.supplierId}
-              onClick={() => update({ supplierId: s.id })}
-            />
-          ))}
-        </div>
+        <SupplierPicker
+          suppliers={SUPPLIERS}
+          value={cfg.supplierId}
+          onChange={(supplierId) => update({ supplierId })}
+          currentWidth={cfg.width}
+        />
       </Section>
+      )}
 
       <Section title="Built &amp; size" hint={`${geo.metrics.footprint.toLocaleString()} sq ft footprint`}>
         {/* Only sizes the supplier actually prints — these books are matrices,
@@ -100,16 +98,16 @@ export default function OptionPanel({
           note={`${bowCount(cfg.length, cfg.onCenter)} bows on ${cfg.onCenter}′ centers`}
         >
           <select value={cfg.length} onChange={(e) => update({ length: Number(e.target.value) })}>
-            {supplier.lengthsFor(cfg.roofBuild, cfg.onCenter).map((l) => (
+            {supplier.lengthsFor(cfg.roofBuild, cfg.onCenter, cfg.width).map((l) => (
               <option key={l} value={l}>{l}&prime; long</option>
             ))}
           </select>
         </Field>
         <Field label="Leg height" note={`Peak reaches ${geo.metrics.peakHeight.toFixed(1)}'`}>
           <select value={cfg.eaveHeight} onChange={(e) => update({ eaveHeight: Number(e.target.value) })}>
-            {supplier.legHeights.map((h) => (
+            {supplier.legHeightsFor(cfg.width).map((h) => (
               <option key={h} value={h}>
-                {h}&prime;{h === supplier.standardLegHeight ? ' (standard)' : ''}
+                {h}&prime;{h === supplier.standardLegHeightFor(cfg.width) ? ' (standard)' : ''}
                 {h >= 14 ? ' — double leg' : ''}
               </option>
             ))}
@@ -118,7 +116,7 @@ export default function OptionPanel({
 
         <Field label="Roof style">
           <div className="list">
-            {model.allowedRoofBuilds.map((id) => {
+            {supplier.roofBuildsFor(cfg.width).map((id) => {
               const b = catalog.roofBuilds.find((x) => x.id === id);
               if (!b) return null;
               return (
@@ -141,23 +139,23 @@ export default function OptionPanel({
           onChange={(v) => update({ pitch: Number(v) })}
         />
 
-        {supplier.onCenterFixedByWidth ? (
+        {supplier.onCenterFixedFor(cfg.width) ? (
           <span className="field-note">
             {supplier.name} sets frame spacing by width &mdash; this build is on {cfg.onCenter}&prime; centers.
           </span>
         ) : (
           <Segmented
             label="Frame spacing"
-            options={supplier.onCenters.map((oc) => ({ value: String(oc), label: `${oc}' on center` }))}
+            options={supplier.onCentersFor(cfg.width).map((oc) => ({ value: String(oc), label: `${oc}' on center` }))}
             value={String(cfg.onCenter)}
             onChange={(v) => update({ onCenter: Number(v) as OnCenter })}
           />
         )}
 
-        {supplier.overhangs.length > 1 && (
+        {supplier.overhangsFor(cfg.width).length > 1 && (
           <Segmented
             label="Side overhang"
-            options={supplier.overhangs.map((o) => ({ value: String(o), label: o === 0 ? 'None' : `${o}'` }))}
+            options={supplier.overhangsFor(cfg.width).map((o) => ({ value: String(o), label: o === 0 ? 'None' : `${o}'` }))}
             value={String(cfg.overhang)}
             onChange={(v) => update({ overhang: Number(v) })}
           />

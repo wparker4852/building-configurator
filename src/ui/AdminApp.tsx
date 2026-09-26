@@ -8,6 +8,7 @@ import type { Catalog } from '../core/types';
 import { baseCatalog, resetCatalog, saveCatalog } from '../core/catalog';
 import { deleteLead, leadsToCsv, listLeads, type StoredLead } from '../core/leads';
 import { money } from '../core/pricing';
+import ComponentPricing from './ComponentPricing';
 
 function download(name: string, content: string, type: string) {
   const url = URL.createObjectURL(new Blob([content], { type }));
@@ -128,6 +129,8 @@ export default function AdminApp({
             Changes take effect immediately in the designer and are saved in this browser. Export the file and commit it
             to make them permanent for everyone.
           </p>
+
+          <ComponentPricing defaultMarkupPct={catalog.rules.markup.defaultPct} />
 
           <Sheet title="Branding">
             <table className="grid">

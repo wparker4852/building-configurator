@@ -6,6 +6,7 @@
 import type { AddOn, BuildingConfig, Catalog, LineItem, Quote } from './types';
 import type { BuildingGeometry } from './geometry';
 import { getSupplier, type CostLine } from './suppliers';
+import { pricedComponents } from './componentPricing';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -116,8 +117,30 @@ export function priceBuilding(cfg: BuildingConfig, catalog: Catalog, geo: Buildi
   }
 
   // ── Doors & windows ────────────────────────────────────────────────────────
-  // Only walls that are actually built carry their openings, so switching a
-  // side to "open" removes both the geometry and the charge.
+  // Priced from the supplier's own component list wherever they carry the item,
+  // so the admin price table is what actually drives the quote. Anything the
+  // supplier does not stock falls back to the catalog and is flagged.
+  const components = pricedComponents(supplier, catalog.rules.markup.defaultPct);
+  const byId = new Map(components.map((c) => [c.id, c]));
+
+  /** Match a catalog opening type to this supplier's nearest stocked item. */
+  const matchComponent = (type: { id: string; category: string; width: number; height: number }) => {
+    if (type.category === 'overhead') {
+      const exact = byId.get(`rollup-${type.width}x${type.height}`);
+      if (exact) return exact;
+      // Nearest roll-up door by opening area.
+      const rollups = components.filter((c) => c.category === 'Roll-Up Doors' && c.size);
+      if (!rollups.length) return null;
+      const want = type.width * type.height;
+      return rollups.reduce((a, b) =>
+        Math.abs(b.size!.width * b.size!.height - want) < Math.abs(a.size!.width * a.size!.height - want) ? b : a,
+      );
+    }
+    if (type.category === 'walk') return components.find((c) => c.category === 'Walk-In Doors') ?? null;
+    if (type.category === 'window') return components.find((c) => c.category === 'Windows') ?? null;
+    return null;
+  };
+
   const openingCounts = new Map<string, number>();
   for (const wall of geo.walls) {
     if (!wall.present) continue;
@@ -147,7 +170,24 @@ export function priceBuilding(cfg: BuildingConfig, catalog: Catalog, geo: Buildi
   for (const [catalogId, count] of openingCounts) {
     const type = catalog.openingTypes.find((o) => o.id === catalogId);
     if (!type) continue;
-    lines.push(line(catalog, `op-${catalogId}`, type.name, 'Doors & Windows', count, 'ea', type.price));
+
+    const match = matchComponent(type);
+    if (match) {
+      lines.push({
+        key: `op-${catalogId}`,
+        label: match.label,
+        detail: supplier.name,
+        category: 'Doors & Windows',
+        qty: count,
+        unit: 'ea',
+        unitPrice: match.price,
+        total: round2(count * match.price),
+        cost: round2(count * match.cost),
+      });
+    } else {
+      lines.push(line(catalog, `op-${catalogId}`, type.name, 'Doors & Windows', count, 'ea', type.price));
+      unpriced.push(`${type.name} is not stocked by ${supplier.name} — using catalog price`);
+    }
   }
 
   // ── Add-ons ────────────────────────────────────────────────────────────────

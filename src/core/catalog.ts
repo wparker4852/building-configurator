@@ -112,7 +112,7 @@ export function defaultConfigFor(modelId: string, catalog: Catalog): BuildingCon
     modelId: model.id,
     supplierId: supplier.id,
     width: nearest(width, supplier.widths),
-    length: nearest(length, supplier.lengthsFor(roofBuild, onCenter)),
+    length: nearest(length, supplier.lengthsFor(roofBuild, onCenter, nearest(width, supplier.widths))),
     eaveHeight: d.eaveHeight ?? model.baseEaveHeight,
     roofStyle: d.roofStyle ?? model.allowedRoofStyles[0],
     roofBuild: d.roofBuild ?? model.allowedRoofBuilds[0],
