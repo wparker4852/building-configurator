@@ -1,0 +1,879 @@
+{
+  "version": 1,
+  "branding": {
+    "productName": "Building Designer",
+    "companyName": "Your Company",
+    "accent": "#c2560f",
+    "contactEmail": "sales@example.com",
+    "contactPhone": "(555) 010-0100"
+  },
+  "models": [
+    {
+      "id": "standard-carport",
+      "name": "Standard Carport",
+      "category": "Carports",
+      "tagline": "Open or partly enclosed vehicle cover",
+      "baseEaveHeight": 7,
+      "basePitch": 3,
+      "baseCharge": 650,
+      "basePricePerSqFt": 8.5,
+      "size": {
+        "minWidth": 12,
+        "maxWidth": 24,
+        "minLength": 20,
+        "maxLength": 200,
+        "minEave": 7,
+        "maxEave": 16,
+        "step": 2,
+        "lengthStep": 5,
+        "eaveStep": 1
+      },
+      "allowedRoofStyles": [
+        "gable",
+        "single-slope"
+      ],
+      "allowedRoofBuilds": [
+        "regular",
+        "boxed-eave",
+        "vertical"
+      ],
+      "allowedEnclosures": [
+        "open",
+        "partial",
+        "enclosed"
+      ],
+      "defaults": {
+        "width": 20,
+        "length": 25,
+        "eaveHeight": 8,
+        "pitch": 3,
+        "roofStyle": "gable",
+        "roofBuild": "regular",
+        "enclosure": "open",
+        "floorId": "floor-gravel"
+      }
+    },
+    {
+      "id": "triple-carport",
+      "name": "Triple Wide Carport",
+      "category": "Carports",
+      "tagline": "Wide-span cover, 26‑30 ft",
+      "baseEaveHeight": 8,
+      "basePitch": 3,
+      "baseCharge": 1100,
+      "basePricePerSqFt": 9.4,
+      "size": {
+        "minWidth": 26,
+        "maxWidth": 30,
+        "minLength": 20,
+        "maxLength": 200,
+        "minEave": 7,
+        "maxEave": 16,
+        "step": 2,
+        "lengthStep": 5,
+        "eaveStep": 1
+      },
+      "allowedRoofStyles": [
+        "gable"
+      ],
+      "allowedRoofBuilds": [
+        "regular",
+        "boxed-eave",
+        "vertical"
+      ],
+      "allowedEnclosures": [
+        "open",
+        "partial",
+        "enclosed"
+      ],
+      "defaults": {
+        "width": 30,
+        "length": 35,
+        "eaveHeight": 9,
+        "pitch": 3,
+        "roofStyle": "gable",
+        "roofBuild": "boxed-eave",
+        "enclosure": "open",
+        "floorId": "floor-gravel"
+      }
+    },
+    {
+      "id": "utility-carport",
+      "name": "Utility Carport",
+      "category": "Carports",
+      "tagline": "Open cover with an enclosed storage end",
+      "baseEaveHeight": 7,
+      "basePitch": 3,
+      "baseCharge": 900,
+      "basePricePerSqFt": 11.5,
+      "size": {
+        "minWidth": 12,
+        "maxWidth": 24,
+        "minLength": 20,
+        "maxLength": 200,
+        "minEave": 7,
+        "maxEave": 16,
+        "step": 2,
+        "lengthStep": 5,
+        "eaveStep": 1
+      },
+      "allowedRoofStyles": [
+        "gable",
+        "single-slope"
+      ],
+      "allowedRoofBuilds": [
+        "regular",
+        "boxed-eave",
+        "vertical"
+      ],
+      "allowedEnclosures": [
+        "partial",
+        "enclosed",
+        "open"
+      ],
+      "defaults": {
+        "width": 20,
+        "length": 30,
+        "eaveHeight": 9,
+        "pitch": 3,
+        "roofStyle": "gable",
+        "roofBuild": "boxed-eave",
+        "enclosure": "partial",
+        "floorId": "floor-gravel"
+      }
+    },
+    {
+      "id": "standard-garage",
+      "name": "Standard Garage",
+      "category": "Garages",
+      "tagline": "Fully enclosed, slab-ready",
+      "baseEaveHeight": 8,
+      "basePitch": 3,
+      "baseCharge": 1500,
+      "basePricePerSqFt": 13.5,
+      "size": {
+        "minWidth": 12,
+        "maxWidth": 24,
+        "minLength": 20,
+        "maxLength": 200,
+        "minEave": 7,
+        "maxEave": 16,
+        "step": 2,
+        "lengthStep": 5,
+        "eaveStep": 1
+      },
+      "allowedRoofStyles": [
+        "gable",
+        "single-slope"
+      ],
+      "allowedRoofBuilds": [
+        "regular",
+        "boxed-eave",
+        "vertical"
+      ],
+      "allowedEnclosures": [
+        "enclosed",
+        "partial"
+      ],
+      "defaults": {
+        "width": 24,
+        "length": 40,
+        "eaveHeight": 10,
+        "pitch": 3,
+        "roofStyle": "gable",
+        "roofBuild": "vertical",
+        "enclosure": "enclosed",
+        "floorId": "floor-concrete-4"
+      }
+    },
+    {
+      "id": "triple-garage",
+      "name": "Triple Wide Garage",
+      "category": "Garages",
+      "tagline": "Wide-span enclosed shop, 26‑30 ft",
+      "baseEaveHeight": 9,
+      "basePitch": 3,
+      "baseCharge": 2200,
+      "basePricePerSqFt": 14.6,
+      "size": {
+        "minWidth": 26,
+        "maxWidth": 30,
+        "minLength": 20,
+        "maxLength": 200,
+        "minEave": 7,
+        "maxEave": 16,
+        "step": 2,
+        "lengthStep": 5,
+        "eaveStep": 1
+      },
+      "allowedRoofStyles": [
+        "gable"
+      ],
+      "allowedRoofBuilds": [
+        "regular",
+        "boxed-eave",
+        "vertical"
+      ],
+      "allowedEnclosures": [
+        "enclosed",
+        "partial"
+      ],
+      "defaults": {
+        "width": 30,
+        "length": 40,
+        "eaveHeight": 12,
+        "pitch": 4,
+        "roofStyle": "gable",
+        "roofBuild": "vertical",
+        "enclosure": "enclosed",
+        "floorId": "floor-concrete-6"
+      }
+    },
+    {
+      "id": "free-standing",
+      "name": "Free Standing Building",
+      "category": "Free Standings",
+      "tagline": "Narrow stand-alone unit, 6‑15 ft",
+      "baseEaveHeight": 7,
+      "basePitch": 3,
+      "baseCharge": 700,
+      "basePricePerSqFt": 15,
+      "size": {
+        "minWidth": 6,
+        "maxWidth": 15,
+        "minLength": 20,
+        "maxLength": 200,
+        "minEave": 7,
+        "maxEave": 16,
+        "step": 1,
+        "lengthStep": 5,
+        "eaveStep": 1
+      },
+      "allowedRoofStyles": [
+        "gable",
+        "single-slope"
+      ],
+      "allowedRoofBuilds": [
+        "regular",
+        "boxed-eave",
+        "vertical"
+      ],
+      "allowedEnclosures": [
+        "enclosed",
+        "open",
+        "partial"
+      ],
+      "defaults": {
+        "width": 12,
+        "length": 20,
+        "eaveHeight": 8,
+        "pitch": 3,
+        "roofStyle": "gable",
+        "roofBuild": "boxed-eave",
+        "enclosure": "enclosed",
+        "floorId": "floor-gravel"
+      }
+    }
+  ],
+  "roofBuilds": [
+    {
+      "id": "regular",
+      "name": "Regular",
+      "description": "Rounded eaves, panels run the length of the building. The economy roof.",
+      "priceMultiplier": 1,
+      "rounded": true,
+      "panels": "horizontal",
+      "purlins": false,
+      "pitches": [
+        3
+      ]
+    },
+    {
+      "id": "boxed-eave",
+      "name": "A-Frame Boxed Eave",
+      "description": "Squared-off eaves with a residential look, panels still run lengthwise.",
+      "priceMultiplier": 1.13,
+      "rounded": false,
+      "panels": "horizontal",
+      "purlins": false,
+      "pitches": [
+        3,
+        4,
+        5
+      ]
+    },
+    {
+      "id": "vertical",
+      "name": "A-Frame Vertical",
+      "description": "Panels run ridge to eave over hat channel so rain, leaves and snow shed. Required for most certifications.",
+      "priceMultiplier": 1.26,
+      "rounded": false,
+      "panels": "vertical",
+      "purlins": true,
+      "pitches": [
+        3,
+        4,
+        5
+      ]
+    }
+  ],
+  "gauges": [
+    {
+      "id": "14ga",
+      "name": "14 Gauge",
+      "description": "2.25\" square tube, standard framing.",
+      "priceMultiplier": 1
+    },
+    {
+      "id": "12ga",
+      "name": "12 Gauge",
+      "description": "Heavier wall tube for high wind and snow loads.",
+      "priceMultiplier": 1.16
+    }
+  ],
+  "roofStyles": [
+    {
+      "id": "gable",
+      "name": "Gable (A-frame)",
+      "priceMultiplier": 1,
+      "minPitch": 2,
+      "maxPitch": 12
+    },
+    {
+      "id": "single-slope",
+      "name": "Single Slope",
+      "priceMultiplier": 0.94,
+      "minPitch": 1,
+      "maxPitch": 5
+    }
+  ],
+  "sidings": [
+    {
+      "id": "sid-ribbed-29",
+      "name": "29ga Ribbed Steel",
+      "kind": "siding",
+      "texture": "ribbed",
+      "pricePerSqFt": 3.25,
+      "tileHeight": 3
+    },
+    {
+      "id": "sid-ribbed-26",
+      "name": "26ga Ribbed Steel",
+      "kind": "siding",
+      "texture": "ribbed",
+      "pricePerSqFt": 4.4,
+      "tileHeight": 3
+    },
+    {
+      "id": "sid-board-batten",
+      "name": "Board & Batten Steel",
+      "kind": "siding",
+      "texture": "board-batten",
+      "pricePerSqFt": 5.1,
+      "tileHeight": 4
+    },
+    {
+      "id": "sid-lap",
+      "name": "Vinyl Lap Siding",
+      "kind": "siding",
+      "texture": "lap",
+      "pricePerSqFt": 4.25,
+      "tileHeight": 2.8
+    },
+    {
+      "id": "sid-smooth",
+      "name": "LP SmartSide Panel",
+      "kind": "siding",
+      "texture": "smooth",
+      "pricePerSqFt": 5.75,
+      "tileHeight": 4
+    }
+  ],
+  "roofings": [
+    {
+      "id": "rf-ribbed-29",
+      "name": "29ga Ribbed Steel",
+      "kind": "roofing",
+      "texture": "ribbed",
+      "pricePerSqFt": 2.75,
+      "tileHeight": 3
+    },
+    {
+      "id": "rf-ribbed-26",
+      "name": "26ga Ribbed Steel",
+      "kind": "roofing",
+      "texture": "ribbed",
+      "pricePerSqFt": 3.85,
+      "tileHeight": 3
+    },
+    {
+      "id": "rf-standing-seam",
+      "name": "Standing Seam Metal",
+      "kind": "roofing",
+      "texture": "ribbed",
+      "pricePerSqFt": 7.25,
+      "tileHeight": 2
+    },
+    {
+      "id": "rf-shingle",
+      "name": "Architectural Shingles",
+      "kind": "roofing",
+      "texture": "shingle",
+      "pricePerSqFt": 4.5,
+      "tileHeight": 2.5
+    }
+  ],
+  "colors": [
+    {
+      "id": "ash-gray",
+      "name": "Ash Gray",
+      "hex": "#b6bab8",
+      "upchargePerSqFt": 0,
+      "metallic": 0.3
+    },
+    {
+      "id": "black",
+      "name": "Black",
+      "hex": "#2a2a2c",
+      "upchargePerSqFt": 0,
+      "metallic": 0.3
+    },
+    {
+      "id": "bright-white",
+      "name": "Bright White",
+      "hex": "#f2f3f3",
+      "upchargePerSqFt": 0,
+      "metallic": 0.22
+    },
+    {
+      "id": "brown",
+      "name": "Brown",
+      "hex": "#4f342a",
+      "upchargePerSqFt": 0,
+      "metallic": 0.28
+    },
+    {
+      "id": "burgundy",
+      "name": "Burgundy",
+      "hex": "#6b2432",
+      "upchargePerSqFt": 0,
+      "metallic": 0.28
+    },
+    {
+      "id": "burnished-slate",
+      "name": "Burnished Slate",
+      "hex": "#4b4238",
+      "upchargePerSqFt": 0,
+      "metallic": 0.3
+    },
+    {
+      "id": "charcoal",
+      "name": "Charcoal",
+      "hex": "#5a5a58",
+      "upchargePerSqFt": 0,
+      "metallic": 0.32
+    },
+    {
+      "id": "clay",
+      "name": "Clay",
+      "hex": "#bdb195",
+      "upchargePerSqFt": 0,
+      "metallic": 0.24
+    },
+    {
+      "id": "gallery-blue",
+      "name": "Gallery Blue",
+      "hex": "#2a5e86",
+      "upchargePerSqFt": 0,
+      "metallic": 0.26
+    },
+    {
+      "id": "galvalume",
+      "name": "Galvalume",
+      "hex": "#cfd2d3",
+      "upchargePerSqFt": 0,
+      "metallic": 0.85
+    },
+    {
+      "id": "green",
+      "name": "Green",
+      "hex": "#2d5240",
+      "upchargePerSqFt": 0,
+      "metallic": 0.26
+    },
+    {
+      "id": "light-stone",
+      "name": "Light Stone",
+      "hex": "#e6d79b",
+      "upchargePerSqFt": 0,
+      "metallic": 0.22
+    },
+    {
+      "id": "ocean-blue",
+      "name": "Ocean Blue",
+      "hex": "#3d7593",
+      "upchargePerSqFt": 0,
+      "metallic": 0.26
+    },
+    {
+      "id": "pewter-gray",
+      "name": "Pewter Gray",
+      "hex": "#a9adad",
+      "upchargePerSqFt": 0,
+      "metallic": 0.32
+    },
+    {
+      "id": "red",
+      "name": "Red",
+      "hex": "#9c2b22",
+      "upchargePerSqFt": 0,
+      "metallic": 0.26
+    },
+    {
+      "id": "tan",
+      "name": "Tan",
+      "hex": "#c2a480",
+      "upchargePerSqFt": 0,
+      "metallic": 0.24
+    }
+  ],
+  "openingTypes": [
+    {
+      "id": "oh-8x7",
+      "name": "Overhead Door 8' × 7'",
+      "category": "overhead",
+      "width": 8,
+      "height": 7,
+      "defaultSill": 0,
+      "price": 1150,
+      "allowedWalls": "any",
+      "allowSill": false
+    },
+    {
+      "id": "oh-9x8",
+      "name": "Overhead Door 9' × 8'",
+      "category": "overhead",
+      "width": 9,
+      "height": 8,
+      "defaultSill": 0,
+      "price": 1395,
+      "allowedWalls": "any",
+      "allowSill": false
+    },
+    {
+      "id": "oh-10x10",
+      "name": "Overhead Door 10' × 10'",
+      "category": "overhead",
+      "width": 10,
+      "height": 10,
+      "defaultSill": 0,
+      "price": 1795,
+      "allowedWalls": "any",
+      "allowSill": false
+    },
+    {
+      "id": "oh-12x12",
+      "name": "Overhead Door 12' × 12'",
+      "category": "overhead",
+      "width": 12,
+      "height": 12,
+      "defaultSill": 0,
+      "price": 2450,
+      "allowedWalls": "any",
+      "allowSill": false
+    },
+    {
+      "id": "roll-8x8",
+      "name": "Roll-Up Door 8' × 8'",
+      "category": "overhead",
+      "width": 8,
+      "height": 8,
+      "defaultSill": 0,
+      "price": 895,
+      "allowedWalls": "any",
+      "allowSill": false
+    },
+    {
+      "id": "walk-3068",
+      "name": "Walk Door 3' × 6'8\"",
+      "category": "walk",
+      "width": 3,
+      "height": 6.67,
+      "defaultSill": 0,
+      "price": 685,
+      "allowedWalls": "any",
+      "allowSill": false
+    },
+    {
+      "id": "walk-3068-glass",
+      "name": "Walk Door w/ Half Glass",
+      "category": "walk",
+      "width": 3,
+      "height": 6.67,
+      "defaultSill": 0,
+      "price": 845,
+      "allowedWalls": "any",
+      "allowSill": false
+    },
+    {
+      "id": "win-2530",
+      "name": "Window 30\" × 30\"",
+      "category": "window",
+      "width": 2.5,
+      "height": 2.5,
+      "defaultSill": 3.5,
+      "price": 315,
+      "allowedWalls": "any",
+      "allowSill": true
+    },
+    {
+      "id": "win-4030",
+      "name": "Window 4' × 3'",
+      "category": "window",
+      "width": 4,
+      "height": 3,
+      "defaultSill": 3.5,
+      "price": 395,
+      "allowedWalls": "any",
+      "allowSill": true
+    },
+    {
+      "id": "win-6040",
+      "name": "Sliding Window 6' × 4'",
+      "category": "window",
+      "width": 6,
+      "height": 4,
+      "defaultSill": 3,
+      "price": 610,
+      "allowedWalls": "any",
+      "allowSill": true
+    },
+    {
+      "id": "framed-opening",
+      "name": "Framed Opening",
+      "category": "framed",
+      "width": 8,
+      "height": 8,
+      "defaultSill": 0,
+      "price": 240,
+      "pricePerSqFt": 9.5,
+      "allowedWalls": "any",
+      "allowSill": true,
+      "resizable": true,
+      "minWidth": 2,
+      "maxWidth": 20,
+      "minHeight": 2,
+      "maxHeight": 16
+    }
+  ],
+  "floors": [
+    {
+      "id": "floor-none",
+      "name": "No Floor (bare ground)",
+      "pricePerSqFt": 0,
+      "thickness": 0,
+      "hex": "#7a7159"
+    },
+    {
+      "id": "floor-gravel",
+      "name": "Compacted Gravel Pad",
+      "pricePerSqFt": 2.1,
+      "thickness": 0.35,
+      "hex": "#9a9285"
+    },
+    {
+      "id": "floor-concrete-4",
+      "name": "4\" Concrete Slab",
+      "pricePerSqFt": 6.5,
+      "thickness": 0.42,
+      "hex": "#b8b6b0"
+    },
+    {
+      "id": "floor-concrete-6",
+      "name": "6\" Reinforced Slab",
+      "pricePerSqFt": 8.75,
+      "thickness": 0.58,
+      "hex": "#b0aea8"
+    },
+    {
+      "id": "floor-wood",
+      "name": "Treated Wood Floor",
+      "pricePerSqFt": 7.4,
+      "thickness": 0.6,
+      "hex": "#96794f"
+    }
+  ],
+  "addOns": [
+    {
+      "id": "anchors",
+      "name": "Anchor Package",
+      "description": "Rated anchors sized for your foundation type.",
+      "category": "Structure",
+      "basis": "perimeter",
+      "price": 3.75
+    },
+    {
+      "id": "wind-cert",
+      "name": "Certified Wind & Snow Rating",
+      "description": "Engineer-stamped certification for permitting.",
+      "category": "Structure",
+      "basis": "each",
+      "price": 650
+    },
+    {
+      "id": "permit-drawings",
+      "name": "Permit Drawing Set",
+      "description": "Sealed drawings for your local building department.",
+      "category": "Structure",
+      "basis": "each",
+      "price": 395
+    },
+    {
+      "id": "site-prep",
+      "name": "Site Prep & Leveling",
+      "description": "Grading and leveling of the build pad.",
+      "category": "Structure",
+      "basis": "footprint",
+      "price": 1.75
+    },
+    {
+      "id": "ins-walls",
+      "name": "Wall Insulation (R-13)",
+      "description": "Faced batt insulation in all enclosed walls.",
+      "category": "Insulation",
+      "basis": "wallArea",
+      "price": 1.85
+    },
+    {
+      "id": "ins-roof",
+      "name": "Roof Insulation (R-19)",
+      "description": "Faced batt insulation under the roof deck.",
+      "category": "Insulation",
+      "basis": "roofArea",
+      "price": 2.1
+    },
+    {
+      "id": "gutters",
+      "name": "Gutters & Downspouts",
+      "description": "Seamless gutters on both eave sides.",
+      "category": "Exterior",
+      "basis": "perimeter",
+      "price": 6.25
+    },
+    {
+      "id": "wainscot",
+      "name": "Wainscot Panel",
+      "description": "Contrasting 3' panel around the base of the walls.",
+      "category": "Exterior",
+      "basis": "perimeter",
+      "price": 12
+    },
+    {
+      "id": "ridge-vent",
+      "name": "Ridge Vent",
+      "description": "Continuous vented ridge cap.",
+      "category": "Exterior",
+      "basis": "length",
+      "price": 14
+    },
+    {
+      "id": "cupola",
+      "name": "Cupola",
+      "description": "Decorative vented cupola on the ridge.",
+      "category": "Exterior",
+      "basis": "each",
+      "price": 780,
+      "countable": true,
+      "maxQty": 3
+    },
+    {
+      "id": "skylight",
+      "name": "Skylight Panel",
+      "description": "Translucent roof panel for daylight.",
+      "category": "Exterior",
+      "basis": "each",
+      "price": 185,
+      "countable": true,
+      "maxQty": 12
+    },
+    {
+      "id": "electrical",
+      "name": "Electrical Package",
+      "description": "Panel, outlets, switches and rough-in.",
+      "category": "Interior",
+      "basis": "each",
+      "price": 1450
+    },
+    {
+      "id": "led-lights",
+      "name": "LED Shop Light",
+      "description": "4' linear LED fixture, installed.",
+      "category": "Interior",
+      "basis": "each",
+      "price": 240,
+      "countable": true,
+      "maxQty": 20
+    },
+    {
+      "id": "rush",
+      "name": "Rush Build Fee",
+      "description": "Moves the order to the front of the build queue.",
+      "category": "Internal",
+      "basis": "each",
+      "price": 1200,
+      "internalOnly": true
+    }
+  ],
+  "rules": {
+    "heightAdderPerFtPerPerimeterFt": 9.5,
+    "pitchAdderPerRisePerSqFt": 0.35,
+    "enclosureMultipliers": {
+      "enclosed": 1,
+      "partial": 0.82,
+      "open": 0.62
+    },
+    "costFactors": {
+      "Structure": 0.58,
+      "Siding": 0.55,
+      "Roofing": 0.55,
+      "Doors & Windows": 0.62,
+      "Foundation": 0.68,
+      "Insulation": 0.6,
+      "Exterior": 0.58,
+      "Interior": 0.6,
+      "Internal": 0.15,
+      "Freight": 0.85
+    },
+    "defaultCostFactor": 0.6,
+    "taxRate": 0.0825,
+    "freight": {
+      "baseCharge": 250,
+      "perMile": 3.25,
+      "freeRadiusMiles": 30,
+      "defaultMiles": 45
+    },
+    "financing": {
+      "months": 60,
+      "apr": 9.9,
+      "downPct": 10
+    },
+    "postSpacing": 10,
+    "wallThickness": 0.29,
+    "roofThickness": 0.25,
+    "tubeSize": 0.1875,
+    "eaveRoundRadius": 1.35,
+    "wainscotHeight": 3,
+    "onCenter4Multiplier": 1.14,
+    "certifiedMultiplier": 1.09,
+    "markup": {
+      "defaultPct": 40,
+      "byCategory": {
+        "Structure": 38,
+        "Walls": 38,
+        "Upgrades": 45,
+        "Doors & Windows": 45,
+        "Options": 50
+      }
+    }
+  }
+}

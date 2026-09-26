@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Embed demo — a dealer's marketing page</title>
+<style>
+  :root { --ink:#16191d; }
+  * { box-sizing: border-box; }
+  body { margin:0; font: 16px/1.6 Georgia, "Times New Roman", serif; color: var(--ink); background:#fbfaf8; }
+  header { background:#20303d; color:#fff; padding:14px 24px; font-family: ui-sans-serif, system-ui, sans-serif; }
+  header .logo { font-weight:800; letter-spacing:-.02em; font-size:18px; }
+  header nav { font-size:13px; opacity:.75; margin-top:2px; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 36px 24px 60px; }
+  h1 { font-size: 34px; line-height:1.2; margin:0 0 10px; letter-spacing:-.02em; }
+  .lede { font-size:18px; color:#4c545e; max-width: 62ch; margin:0 0 28px; }
+  .note { font-family: ui-sans-serif, system-ui, sans-serif; font-size:13px; color:#6b7280; margin-top:14px; }
+  #log { font-family: ui-monospace, Menlo, Consolas, monospace; font-size:12px; background:#111418; color:#b9f6ca;
+         padding:12px 14px; border-radius:8px; margin-top:16px; white-space:pre-wrap; display:none; }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">Northridge Structures</div>
+  <nav>Carports &middot; Garages &middot; Barns &middot; Financing &middot; Contact</nav>
+</header>
+
+<div class="wrap">
+  <h1>Design your building, see the price instantly.</h1>
+  <p class="lede">
+    Pick your size, roof, colors and doors. The price updates as you build. When it looks right,
+    send it to us and we'll confirm the quote.
+  </p>
+
+  <!-- The widget mounts here -->
+  <div id="building-designer"></div>
+
+  <p class="note">
+    This page is a stand-in for a customer's marketing site. The only thing it contains is the
+    <code>&lt;div&gt;</code> above and the script tag below.
+  </p>
+  <div id="log"></div>
+</div>
+
+<script src="/embed.js" data-target="#building-designer" data-height="780" async></script>
+<script>
+  // Example host-page integration: log lead events that the widget emits.
+  var log = document.getElementById('log');
+  window.addEventListener('building-designer:lead', function (e) {
+    log.style.display = 'block';
+    log.textContent += 'lead → ' + JSON.stringify(e.detail, null, 2) + '\n';
+  });
+  window.addEventListener('building-designer:ready', function () {
+    log.style.display = 'block';
+    log.textContent += 'widget ready\n';
+  });
+</script>
+</body>
+</html>

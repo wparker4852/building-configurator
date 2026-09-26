@@ -1,0 +1,239 @@
+{
+  "id": "central-steel-cost",
+  "vendor": "Central Steel Buildings",
+  "source": "Contractor (sept26), dated 8/31/26",
+  "kind": "component-cost",
+  "note": "Contractor component pricing — this is cost of goods, not a sell price.",
+  "tubingPerFt": {
+    "14ga-2.50": 2.08,
+    "14ga-2.25": 1.98,
+    "14ga-2.00": 1.98,
+    "14ga-2x3": 3.08,
+    "12ga-2.25": 2.8,
+    "surchargeUnder16ftForLegs": 0.03,
+    "stockLengths": {
+      "14ga-2.25": [
+        20,
+        24,
+        32
+      ],
+      "12ga-2.25": [
+        20,
+        22,
+        26,
+        32
+      ]
+    }
+  },
+  "bows": {
+    "regular-14ga": {
+      "12": 40,
+      "14": 47,
+      "15": 50,
+      "18": 65,
+      "20": 70,
+      "22": 75,
+      "24": 80,
+      "26": 131,
+      "28": 140,
+      "30": 160
+    },
+    "aframe-14ga": {
+      "12": 43,
+      "14": 48,
+      "15": 53,
+      "18": 68,
+      "20": 73,
+      "22": 78,
+      "24": 83,
+      "26": 134,
+      "28": 143,
+      "30": 148,
+      "38": 525,
+      "40": 525,
+      "50": 655,
+      "60": 725,
+      "70": 835
+    },
+    "regular-12ga": {
+      "12": 72,
+      "14": 83,
+      "15": 90,
+      "18": 100,
+      "20": 110,
+      "22": 119,
+      "24": 131,
+      "26": 215,
+      "28": 238,
+      "30": 263
+    },
+    "aframe-12ga": {
+      "12": 75,
+      "14": 86,
+      "15": 93,
+      "18": 103,
+      "20": 113,
+      "22": 122,
+      "24": 134,
+      "26": 218,
+      "28": 241,
+      "30": 266,
+      "38": 665,
+      "40": 665,
+      "50": 800
+    },
+    "leanTo": {
+      "12": 40,
+      "20": 73,
+      "20-double-header": 142
+    },
+    "specials": {
+      "40ft-5-12-pitch": 555,
+      "30ft-5-12-pitch": 195,
+      "30ft-more-bracing": 195,
+      "35ft-ladder": 525,
+      "46ft-ladder": 655,
+      "48ft": 655
+    }
+  },
+  "baserailsSingle": {
+    "14ga": {
+      "10": 43,
+      "15": 63,
+      "20": 81,
+      "25": 100,
+      "30": 119
+    },
+    "12ga": {
+      "10": 65,
+      "15": 95,
+      "20": 125,
+      "25": 155,
+      "30": 185
+    }
+  },
+  "ladderLegsEach": 6.5,
+  "panelsPerFt": {
+    "29ga-regular": 2.75,
+    "29ga-burnished-crimson-gallery": 3.05,
+    "26ga-regular": 3.3,
+    "dripstop-29ga-regular": 3.9,
+    "dripstop-burnished-crimson-gallery": 4.2,
+    "dripstop-25ga-regular": 4.45
+  },
+  "walkInDoors": {
+    "36x80-diamond-no-window": 190,
+    "half-moon": 205,
+    "9lite-white": 220,
+    "9lite-black": 230,
+    "6-panel": 190,
+    "locks": 15,
+    "premium-6-panel-white": 359,
+    "premium-9-lite-black": 386
+  },
+  "windows": {
+    "30x30-white": 47.75,
+    "30x30-black": 50.25,
+    "24x36-white": 45,
+    "24x36-black": 48.25,
+    "30x36-white": 52.75,
+    "30x36-black": 55.25,
+    "premium-24x36-white": 250
+  },
+  "garageDoors": {
+    "6x7": 520,
+    "8x7": 560,
+    "8x8": 560,
+    "9x8": 590,
+    "10x8": 625,
+    "10x10": 765,
+    "10x10-chain-hoist": 1105,
+    "10x12-chain-hoist": 1145,
+    "12x10-chain-hoist": 1195,
+    "12x12-chain-hoist": 1250,
+    "12x14-chain-hoist": 1450,
+    "14x12-chain-hoist": 1630,
+    "14x14-chain-hoist": 1960,
+    "16x16-chain-hoist": 2210,
+    "coloredUpcharge": 40,
+    "colors": [
+      "Sandstone",
+      "Burnished Slate",
+      "Brown",
+      "Black",
+      "Red",
+      "Pewter Grey",
+      "Quaker Grey"
+    ]
+  },
+  "garageDoorRails": {
+    "6x7": 70,
+    "8x7": 70,
+    "8x8": 75,
+    "9x8": 75,
+    "10x8": 75,
+    "10x10": 85,
+    "10x10-12x10-commercial": 288,
+    "10x12-12x12-commercial": 298,
+    "14x14-16x16": 320
+  },
+  "garageDoorHardware": {
+    "6x7-10x10": 88,
+    "with-chain-10x10-14x12": 255,
+    "with-chain-12x14-16x16": 285
+  },
+  "trimAndHardware": {
+    "j-trim-l-trim": 5.25,
+    "corner-trim-z-trim": 13.25,
+    "ridge-cap-valley-trim": 14.25,
+    "box-eave-flashing": 14.25,
+    "special-box-eave": 15.5,
+    "latches": 35,
+    "l-brackets-2in": 0.65,
+    "flat-brackets": 0.65,
+    "silicon": 5.23,
+    "spray-paint": 5.75,
+    "header-seal-per-ft": 11,
+    "closure-strips": 2.5,
+    "z-clips": 6.35,
+    "placas": 3.75,
+    "double-side-tape": 15,
+    "hat-channel-per-ft": 1.03,
+    "u-channel-braces-per-ft": 1.03
+  },
+  "sleeves": {
+    "14ga-2.25x7.5": 1.95,
+    "14ga-2x7.5": 1.85,
+    "14ga-2.50x2ft": 3.95
+  },
+  "skylights": {
+    "8": 90.55,
+    "10": 100.79,
+    "12": 110.97
+  },
+  "anchors": {
+    "rebar": 2.95,
+    "mobile-home-no-bolts": 6.45,
+    "bolts-nuts-washer-set": 0.9,
+    "asphalt": 6.45,
+    "concrete-5.5x0.5": 1.25,
+    "concrete-7x0.625": 1.85
+  },
+  "screws": {
+    "metal-to-wood-1.5in-250pc": 30.75,
+    "metal-to-wood-2in-250pc": 32.25,
+    "colored-0.75in-250pc": 22.5,
+    "colored-2in-250pc": 27.5,
+    "0.75in-with-washer-5000pc": 125,
+    "0.75in-no-washer-5000pc": 105,
+    "hex-bolt-connector-6x0.5-each": 2.35
+  },
+  "insulation": {
+    "single-bubble-6x125": 135,
+    "double-bubble-6x125": 165,
+    "prodex-6x125": 375,
+    "px50-5x125": 375,
+    "fiberglass-2in-5x65-per-ft": 1,
+    "fiberglass-2in-5x80-per-ft": 1
+  }
+}
