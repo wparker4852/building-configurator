@@ -9,6 +9,7 @@ import { baseCatalog, resetCatalog, saveCatalog } from '../core/catalog';
 import { deleteLead, leadsToCsv, listLeads, type StoredLead } from '../core/leads';
 import { money } from '../core/pricing';
 import ComponentPricing from './ComponentPricing';
+import { BRAND } from './brand';
 import AddPartForm from './AddPartForm';
 
 function download(name: string, content: string, type: string) {
@@ -101,7 +102,9 @@ export default function AdminApp({
     <div className="app">
       <header className="topbar">
         <div className="brand">
-          Catalog admin<span className="co">{catalog.branding.companyName}</span>
+          <img className="logo" src={BRAND.wordmark} alt={catalog.branding.companyName} />
+          <span className="divider" />
+          <span className="product">Catalog admin</span>
         </div>
         <div className="spacer" />
         {saved && <span className="badge">Saved</span>}

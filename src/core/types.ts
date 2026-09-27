@@ -346,6 +346,8 @@ export interface Branding {
   /** Shown on the quote request form. */
   contactEmail: string;
   contactPhone: string;
+  /** Company website, shown on the quote. */
+  website?: string;
 }
 
 export interface Catalog {

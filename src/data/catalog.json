@@ -1,11 +1,12 @@
 {
-  "version": 2,
+  "version": 3,
   "branding": {
-    "productName": "Building Designer",
-    "companyName": "Your Company",
-    "accent": "#c2560f",
-    "contactEmail": "sales@example.com",
-    "contactPhone": "(555) 010-0100"
+    "productName": "3D Building Designer",
+    "companyName": "Walker Buildings",
+    "accent": "#FFC301",
+    "contactEmail": "Orders@WalkerBuildings.com",
+    "contactPhone": "(704) 828-0595",
+    "website": "https://www.walkerbuildings.com"
   },
   "models": [
     {

@@ -11,7 +11,7 @@ import { FLOOR_PLAN_ITEMS, checkFit, newPlanItemId, placedRect, type Fit } from 
 import { feetInches } from '../core/format';
 
 const MARGIN = 64;
-const BG = '#f0ede8';
+const BG = '#f4f4f4';
 
 /** Black or white, whichever reads on a fill. */
 function textOn(hex: string) {
@@ -470,7 +470,7 @@ function drawPlan(ctx: CanvasRenderingContext2D, a: DrawArgs) {
   const cw = geo.metrics.clearWidth / 2;
   const cl = geo.metrics.clearLength / 2;
   ctx.setLineDash([px * 6, px * 4]);
-  ctx.strokeStyle = 'rgba(232,99,42,0.7)';
+  ctx.strokeStyle = 'rgba(170,130,1,0.85)';
   ctx.lineWidth = px * 1.2;
   ctx.strokeRect(-cw, -cl, cw * 2, cl * 2);
   ctx.setLineDash([]);
@@ -522,7 +522,7 @@ function drawPlan(ctx: CanvasRenderingContext2D, a: DrawArgs) {
       const [ax, ay] = at(h.x0);
       const [bx, by] = at(h.x1);
       const door = h.y0 < 0.05;
-      ctx.strokeStyle = door ? '#e8632a' : '#3b82c4';
+      ctx.strokeStyle = door ? '#ffc301' : '#575757';
       ctx.lineWidth = px * (door ? 5 : 3);
       ctx.beginPath();
       ctx.moveTo(ax, ay);
@@ -533,7 +533,7 @@ function drawPlan(ctx: CanvasRenderingContext2D, a: DrawArgs) {
         const nx = -uy;
         const ny = ux;
         const r = h.x1 - h.x0;
-        ctx.strokeStyle = 'rgba(232,99,42,0.6)';
+        ctx.strokeStyle = 'rgba(170,130,1,0.7)';
         ctx.lineWidth = px;
         ctx.beginPath();
         ctx.moveTo(ax, ay);
@@ -559,7 +559,7 @@ function drawPlan(ctx: CanvasRenderingContext2D, a: DrawArgs) {
     ctx.shadowColor = 'transparent';
     const fit = fits[i];
     if (fit !== 'ok' || it.id === selected) {
-      ctx.strokeStyle = fit !== 'ok' ? '#d0342c' : '#e8632a';
+      ctx.strokeStyle = fit !== 'ok' ? '#d0342c' : '#000000';
       ctx.lineWidth = px * 1.6;
       ctx.setLineDash(it.id === selected ? [px * 4, px * 3] : []);
       ctx.strokeRect(-it.w / 2 - px * 4, -it.h / 2 - px * 4, it.w + px * 8, it.h + px * 8);

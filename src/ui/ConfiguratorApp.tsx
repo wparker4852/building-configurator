@@ -15,6 +15,7 @@ import OptionPanel from './OptionPanel';
 import FloorPlan from './FloorPlan';
 import PriceSummary from './PriceSummary';
 import QuoteDialog from './QuoteDialog';
+import { BRAND } from './brand';
 import { buildQuoteHtml, openQuoteDocument, quoteNumber, type Lead } from './quoteDoc';
 
 const VIEWS: { id: ViewPreset; label: string }[] = [
@@ -200,8 +201,9 @@ export default function ConfiguratorApp({
     <div className={`app${embed ? ' embed' : ''}`}>
       <header className="topbar">
         <div className="brand">
-          {catalog.branding.productName}
-          <span className="co">{catalog.branding.companyName}</span>
+          <img className="logo" src={BRAND.wordmark} alt={catalog.branding.companyName} />
+          <span className="divider" />
+          <span className="product">{catalog.branding.productName}</span>
         </div>
         <div className="spacer" />
         <span className="badge">{model?.name}</span>

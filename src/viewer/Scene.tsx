@@ -256,7 +256,7 @@ const labelStyle: React.CSSProperties = {
   borderRadius: 4,
   fontSize: 11,
   fontWeight: 600,
-  fontFamily: 'ui-sans-serif, system-ui, sans-serif',
+  fontFamily: 'Questrial, ui-sans-serif, system-ui, sans-serif',
   whiteSpace: 'nowrap',
   pointerEvents: 'none',
   transform: 'translate(-50%, -50%)',
@@ -360,7 +360,7 @@ function InsideDimensions({ geo }: { geo: BuildingGeometry }) {
   const cw = m.clearWidth / 2;
   const cl = m.clearLength / 2;
   const y = geo.tube;
-  const color = '#e8632a';
+  const color = '#aa8201';
   return (
     <group>
       <DimLine a={v(-cw, y, -cl)} b={v(cw, y, -cl)} out={v(0, 0.02, 0.6)} label={`${feetInches(m.clearWidth)} clear`} color={color} />
@@ -372,7 +372,7 @@ function InsideDimensions({ geo }: { geo: BuildingGeometry }) {
         label={`${feetInches(m.sideClearHeight)} at wall`}
         color={color}
       />
-      <Html position={[0, m.clearHeight - 0.4, cl * 0.4]} style={{ ...labelStyle, background: color }} zIndexRange={[10, 0]}>
+      <Html position={[0, m.clearHeight - 0.4, cl * 0.4]} style={{ ...labelStyle, background: '#ffc301', color: '#000' }} zIndexRange={[10, 0]}>
         Clearance {feetInches(m.clearHeight)}
       </Html>
     </group>

@@ -16,6 +16,20 @@ import './ui/theme.css';
 
 type Screen = 'configurator' | 'admin';
 
+/** Perceived brightness of a hex color, 0..1. */
+function luminance(hex: string): number {
+  const n = parseInt(hex.replace('#', '').slice(0, 6), 16) || 0;
+  return (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
+}
+
+/** Darken a hex color toward black. */
+function shadeDown(hex: string, amount: number): string {
+  const n = parseInt(hex.replace('#', '').slice(0, 6), 16) || 0;
+  const k = (c: number) => Math.round(c * (1 - amount));
+  const hex6 = ((1 << 24) | (k((n >> 16) & 255) << 16) | (k((n >> 8) & 255) << 8) | k(n & 255)).toString(16).slice(1);
+  return `#${hex6}`;
+}
+
 /** Lighten a hex color toward white, for the accent tint. */
 function tint(hex: string, amount: number): string {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
@@ -41,7 +55,12 @@ export default function App() {
   useEffect(() => {
     const root = document.documentElement;
     root.style.setProperty('--accent', catalog.branding.accent);
-    root.style.setProperty('--accent-soft', tint(catalog.branding.accent, 0.9));
+    root.style.setProperty('--accent-soft', tint(catalog.branding.accent, 0.85));
+    // Text that sits on the accent: black on a light brand colour (Walker
+    // yellow), white on a dark one. And a darker shade for thin lines and
+    // small marks, where the raw accent would wash out against white.
+    root.style.setProperty('--accent-ink', luminance(catalog.branding.accent) > 0.55 ? '#000000' : '#ffffff');
+    root.style.setProperty('--accent-strong', shadeDown(catalog.branding.accent, 0.33));
     document.title = `${catalog.branding.productName} — ${catalog.branding.companyName}`;
   }, [catalog.branding]);
 

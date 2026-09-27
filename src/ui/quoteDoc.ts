@@ -7,6 +7,7 @@ import type { Audience, BuildingConfig, Catalog, Quote } from '../core/types';
 import type { BuildingGeometry } from '../core/geometry';
 import { money, monthlyPayment } from '../core/pricing';
 import { feetInches } from '../core/format';
+import { BRAND } from './brand';
 
 export interface Lead {
   name: string;
@@ -69,6 +70,9 @@ export function buildQuoteHtml(opts: {
 }): string {
   const { cfg, catalog, geo, quote, lead, image, audience, shareLink, quoteNo } = opts;
   const brand = catalog.branding;
+  // Walker yellow for the rules, bars and total; the site without its scheme for the footer.
+  const Y = esc(brand.accent || BRAND.colors.yellow);
+  const site = brand.website?.replace(/^https?:\/\//, '');
   const internal = audience === 'internal';
   const monthly = monthlyPayment(catalog, quote.total);
   const date = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
@@ -100,42 +104,55 @@ export function buildQuoteHtml(opts: {
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <title>${esc(quoteNo)} — ${esc(brand.companyName)}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700&family=Questrial&display=swap" rel="stylesheet">
 <style>
-  @page { size: letter; margin: 0.6in; }
-  * { box-sizing: border-box; }
-  body { font: 13px/1.5 ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif; color: #16191d; margin: 0; padding: 28px 34px; background: #fff; }
-  .head { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid ${esc(brand.accent)}; padding-bottom: 14px; margin-bottom: 20px; }
-  .co { font-size: 20px; font-weight: 750; letter-spacing: -0.01em; }
-  .co small { display: block; font-size: 11.5px; font-weight: 500; color: #666; letter-spacing: 0; margin-top: 2px; }
-  .meta { text-align: right; font-size: 12px; color: #555; }
-  .meta strong { display: block; font-size: 15px; color: #16191d; }
-  h2 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: #7a828c; margin: 22px 0 8px; }
+  /* Walker Buildings: yellow ${Y}, black, grey #575757, white. Colours print as shown. */
+  @page { size: letter; margin: 0.5in; }
+  * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { font: 13px/1.5 'Questrial', ui-sans-serif, system-ui, 'Segoe UI', Roboto, sans-serif; color: #000; margin: 0; padding: 28px 34px; background: #fff; }
+  .head { display: flex; justify-content: space-between; align-items: center; padding-bottom: 14px; }
+  .logo { height: 58px; width: auto; display: block; }
+  .meta { text-align: right; font-size: 12px; color: #575757; }
+  .meta .title { font-family: 'Poppins', sans-serif; font-weight: 700; font-size: 22px; letter-spacing: 0.06em; color: #000; line-height: 1.1; }
+  .meta strong { display: block; font-size: 14px; color: #000; font-weight: 600; margin-top: 4px; }
+  .rule { height: 6px; background: ${Y}; border-radius: 2px; margin-bottom: 20px; }
+  h2 { font-family: 'Poppins', sans-serif; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em;
+       color: #000; margin: 22px 0 8px; padding-left: 9px; border-left: 4px solid ${Y}; line-height: 1.2; }
   /* The canvas is taller than the building needs; crop to the interesting part. */
   .hero { width: 100%; height: 3.4in; object-fit: cover; object-position: 50% 58%;
-          border-radius: 10px; border: 1px solid #e2e5e9; display: block; }
+          border-radius: 8px; border: 1px solid #d8d8d8; display: block; }
   .cols { display: flex; gap: 26px; align-items: flex-start; }
   .cols > * { flex: 1; min-width: 0; }
   table { width: 100%; border-collapse: collapse; }
-  table.spec th { text-align: left; font-weight: 600; color: #6b7280; width: 38%; padding: 4px 0; vertical-align: top; font-size: 12px; }
+  table.spec th { text-align: left; font-weight: 400; color: #575757; width: 38%; padding: 4px 0; vertical-align: top; font-size: 12px; }
   table.spec td { padding: 4px 0; font-size: 12px; }
-  table.items th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em; color: #7a828c; border-bottom: 2px solid #e2e5e9; padding: 6px 8px; }
-  table.items td { padding: 7px 8px; border-bottom: 1px solid #eef0f3; vertical-align: top; }
+  table.items th { text-align: left; font-family: 'Poppins', sans-serif; font-weight: 600; font-size: 10.5px; text-transform: uppercase;
+                   letter-spacing: 0.05em; color: #fff; background: #000; padding: 7px 8px; }
+  table.items td { padding: 7px 8px; border-bottom: 1px solid #d8d8d8; vertical-align: top; }
+  table.items tbody tr:nth-child(even) td { background: #f4f4f4; }
   .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .sub { font-size: 11px; color: #8b939d; }
-  .muted { color: #8b939d; }
-  .totals { margin-left: auto; width: 320px; margin-top: 10px; }
-  .totals tr td { padding: 4px 8px; }
-  .totals tr.grand td { font-size: 17px; font-weight: 750; border-top: 2px solid #16191d; padding-top: 9px; }
-  .callout { background: #f6f7f9; border-radius: 9px; padding: 12px 14px; font-size: 12px; margin-top: 14px; }
-  .foot { margin-top: 26px; padding-top: 12px; border-top: 1px solid #e2e5e9; font-size: 11px; color: #7a828c; }
-  .link { word-break: break-all; color: #3b6ea5; }
+  .sub { font-size: 11px; color: #727272; }
+  .muted { color: #727272; }
+  .totals { margin-left: auto; width: 330px; margin-top: 10px; }
+  .totals tr td { padding: 4px 10px; }
+  .totals tr.grand td { font-family: 'Poppins', sans-serif; font-size: 17px; font-weight: 700; background: ${Y}; color: #000; padding: 9px 10px; }
+  .callout { background: #f4f4f4; border-left: 4px solid ${Y}; border-radius: 4px; padding: 12px 14px; font-size: 12px; margin-top: 4px; }
+  .foot { margin-top: 26px; padding-top: 12px; border-top: 2px solid #000; font-size: 11px; color: #575757; display: flex; gap: 14px; align-items: flex-start; }
+  .foot .badge { width: 40px; height: 40px; flex: none; }
+  .foot .co { font-family: 'Poppins', sans-serif; font-weight: 600; color: #000; font-size: 12px; }
+  .link { word-break: break-all; color: #000; text-decoration: underline; text-decoration-color: ${Y}; text-decoration-thickness: 2px; }
   @media print { body { padding: 0; } .noprint { display: none; } }
 </style></head>
 <body>
   <div class="head">
-    <div class="co">${esc(brand.companyName)}<small>${esc(brand.productName)} · ${esc(brand.contactPhone)} · ${esc(brand.contactEmail)}</small></div>
-    <div class="meta"><strong>${esc(quoteNo)}</strong>${esc(date)}${internal ? '<br><em>Internal copy</em>' : ''}</div>
+    <img class="logo" src="${BRAND.wordmarkInline}" alt="${esc(brand.companyName)}">
+    <div class="meta">
+      <div class="title">${internal ? 'INTERNAL QUOTE' : 'QUOTE'}</div>
+      <strong>${esc(quoteNo)}</strong>${esc(date)}
+    </div>
   </div>
+  <div class="rule"></div>
 
   ${contact ? `<div class="callout"><strong>Prepared for</strong><br>${contact}${lead.notes ? `<br><span class="muted">${esc(lead.notes)}</span>` : ''}</div>` : ''}
 
@@ -179,10 +196,14 @@ export function buildQuoteHtml(opts: {
   </table>
 
   <div class="foot">
+    <img class="badge" src="${BRAND.badgeInline}" alt="">
+    <div>
+    <div class="co">${esc(brand.companyName)} &middot; ${esc(brand.contactPhone)} &middot; ${esc(brand.contactEmail)}${site ? ` &middot; ${esc(site)}` : ''}</div>
     Pricing is an estimate based on the selections shown and is valid for 30 days. Final pricing is confirmed
     after a site review; permits, site access and ground conditions may affect the installed cost.
     <br><br><a class="link" href="${esc(shareLink)}">Reopen this exact design in the designer</a>
     &mdash; the link is preserved if you save this page as a PDF.
+    </div>
   </div>
 
   <script>window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 350); });</script>

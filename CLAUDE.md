@@ -153,6 +153,14 @@ more side-to-side connection widths.
 
 ---
 
+## Branding
+
+Walker Buildings, from walkerbuildings.com: yellow **#FFC301**, black, grey **#575757**, white (site
+greys #727272 / #B0B0B0 / #D8D8D8 / #F4F4F4); Questrial body type, Poppins display. Logo files are in
+`src/assets/brand/` via `src/ui/brand.ts`; the quote embeds them inline so a saved quote keeps them.
+Text on the accent uses `--accent-ink` (black on yellow) and thin marks use `--accent-strong`, both
+derived at runtime in `App.tsx` from `catalog.branding.accent` — never put white text on the yellow.
+
 ## Gotchas
 
 - **React is pinned to `~19.2`.** `@react-three/fiber@9` declares `peer react ">=19 <19.3"`, so a
