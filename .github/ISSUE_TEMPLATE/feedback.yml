@@ -1,0 +1,46 @@
+name: Tester feedback
+description: Tried the configurator? Tell us what works, what doesn't, and how it compares to Sensei.
+title: "[Feedback] "
+labels: [feedback]
+body:
+  - type: input
+    id: link
+    attributes:
+      label: Design link
+      description: Click "Save & share design" in the configurator and paste the link, so we see exactly what you saw.
+      placeholder: https://...#d=...
+  - type: dropdown
+    id: area
+    attributes:
+      label: What is this about?
+      multiple: true
+      options:
+        - 3D view / how it looks
+        - Frame and structure
+        - Sizes and options offered
+        - Pricing and the quote
+        - Doors and windows
+        - 2D floor plan
+        - Inside view
+        - Ease of use
+        - Something is broken
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: feedback
+    attributes:
+      label: What happened, or what you'd change
+      description: Screenshots help; you can paste them straight in here.
+    validations:
+      required: true
+  - type: textarea
+    id: sensei
+    attributes:
+      label: Compared to Sensei
+      description: Better, worse or missing compared to sensei3d.com? Anything they do that we should copy?
+  - type: input
+    id: device
+    attributes:
+      label: Browser and device
+      placeholder: Chrome on a Windows laptop, Safari on iPhone…
