@@ -85,7 +85,7 @@ taken from it, and where it lives now:
   12 ga = 2¼" (`gauges[].tubeSize`); bent apex on squared bows; peak brace 2/4/6' under 25'
   wide, bottom chord + two struts from 25' (16/18/20' at 25–30', same rule extrapolated wider);
   45° knee braces 3'/4'; hat channel 1' from ridge then every 4'; eave rails on squared eaves;
-  endwall studs ≤5' apart; ladder legs = 7" gap + rungs 20" OC. **Which** leg style is the
+  endwall studs ≤5' apart; frame-outs (full-height jambs, header, sill) at every opening; ladder legs = 7" gap + rungs 20" OC. **Which** leg style is the
   book's call (`Supplier.legStyleFor`), not the partner's height rule — his was 15'/16'.
   Improvements over his: legs, studs and base rails are cut around openings; the chord is set
   so its ends land on the bow (his poked through the roof at low pitch); knee braces stay on an
@@ -118,17 +118,15 @@ walls charged could disagree (e.g. sides open + one end closed drew both sides).
 1. **Frameout pricing.** Doors/windows are wired; frameouts are not yet charged per opening.
    The books price a frameout *without* a door *higher* than one with ($250 vs $200), and door
    sizes differ between suppliers.
-2. **Frame-outs in "Frame only".** They are drawn with the wall, so the frame-only view shows
-   the gaps in studs and rails but not the jambs and headers.
-3. **Lean-tos.** The biggest missing geometry primitive. Unlocks the whole Barns category, which
+2. **Lean-tos.** The biggest missing geometry primitive. Unlocks the whole Barns category, which
    is centre-building-plus-lean-tos: Standard (separate roofs), Raised Center (centre lifted
    clear), Straight Roof (one continuous roof). Garage-with-lean-to and free-standing lean-to
    fall out of the same primitive. The Barns category is deliberately absent until this exists.
-4. **Storage sections** (end / left / right) — what makes a Utility Carport a distinct product.
-5. **Auth + a backend.** `mode=internal` is cosmetic, not a security boundary. Leads and catalog
+3. **Storage sections** (end / left / right) — what makes a Utility Carport a distinct product.
+4. **Auth + a backend.** `mode=internal` is cosmetic, not a security boundary. Leads and catalog
    edits live in `localStorage`. `core/leads.ts` and `core/catalog.ts` are the only files that
    touch storage.
-6. **Tests.** `core/` is pure and is the part worth testing — `roofProfile`, `buildGeometry`
+5. **Tests.** `core/` is pure and is the part worth testing — `roofProfile`, `buildGeometry`
    areas, and the price-book lookups against known cells.
 
 ### Open with the vendors

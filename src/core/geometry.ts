@@ -66,7 +66,8 @@ export interface RoofPlane {
 /** What a frame member is, for a cut list and for anyone reading the frame. */
 export type MemberKind =
   | 'leg' | 'bow' | 'base-rail' | 'eave-rail' | 'knee-brace' | 'peak-brace'
-  | 'bottom-chord' | 'chord-strut' | 'hat-channel' | 'endwall-stud' | 'ladder-rung';
+  | 'bottom-chord' | 'chord-strut' | 'hat-channel' | 'endwall-stud' | 'ladder-rung'
+  | 'jamb' | 'header' | 'sill';
 
 /** One length of square tubing in the frame. */
 export interface TubeMember {
@@ -793,6 +794,56 @@ function buildFrame(
         rotation: [0, 0, 0],
         size: [x1 - x0, tube, tube],
       });
+    }
+  }
+
+  // ── Frame-outs ───────────────────────────────────────────────────────────
+  // Every opening in a built wall is framed in the plane of the frame: two
+  // jambs running full height (slab or base rail up to the bow at an endwall,
+  // up to the eave on a sidewall) so they are carried at both ends, a header
+  // across the top, and a sill under anything that starts above the floor.
+  // The legs and studs cut out above and below then land on the header and
+  // sill instead of hanging in the air.
+  const frameOut = (h: WorldHole, place: (a: number, y0: number, b: number, y1: number) => void, topAt: (u: number) => number) => {
+    const [a, b] = h.span;
+    const door = h.y0 < 0.05;
+    // A jamb beside a door stands on the slab (the base rail is cut there);
+    // beside a window it stands on the base rail.
+    const foot = door ? 0 : tube;
+    for (const u of [a - tube / 2, b + tube / 2]) {
+      place(u, foot, u, topAt(u));
+    }
+    const headerY = h.y1 + tube / 2;
+    if (headerY < Math.min(topAt(a), topAt(b)) - tube / 2) place(a - tube, headerY, b + tube, headerY);
+    if (!door) place(a - tube, h.y0 - tube / 2, b + tube, h.y0 - tube / 2);
+  };
+  for (const end of ['front', 'back'] as const) {
+    if (!present[end]) continue;
+    const z = endZ[end];
+    for (const h of endHoles[end]) {
+      frameOut(
+        h,
+        (x0, y0, x1, y1) => {
+          if (x0 === x1) members.push({ kind: 'jamb', position: [x0, (y0 + y1) / 2, z], rotation: [0, 0, 0], size: [tube, y1 - y0, tube] });
+          else members.push({ kind: y0 < h.y0 ? 'sill' : 'header', position: [(x0 + x1) / 2, y0, z], rotation: [0, 0, 0], size: [x1 - x0, tube, tube] });
+        },
+        (x) => bowUnderside(x),
+      );
+    }
+  }
+  for (const side of [-1, 1] as const) {
+    if (!present[side < 0 ? 'left' : 'right']) continue;
+    const x = side * legX;
+    const eave = bowUnderside(x);
+    for (const h of side < 0 ? sideHoles.left : sideHoles.right) {
+      frameOut(
+        h,
+        (z0, y0, z1, y1) => {
+          if (z0 === z1) members.push({ kind: 'jamb', position: [x, (y0 + y1) / 2, z0], rotation: [0, 0, 0], size: [tube, y1 - y0, tube] });
+          else members.push({ kind: y0 < h.y0 ? 'sill' : 'header', position: [x, y0, (z0 + z1) / 2], rotation: [0, 0, 0], size: [tube, tube, z1 - z0] });
+        },
+        () => eave,
+      );
     }
   }
 

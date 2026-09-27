@@ -102,44 +102,13 @@ function Glass({ width, height, z }: { width: number; height: number; z: number 
   );
 }
 
-/**
- * The structural frame-out: tube steel jambs, header and (where the opening
- * starts above the floor) a sill. Every opening in a steel building is framed
- * out before anything is hung in it, including a bare framed opening.
- */
-function FrameOut({ hole, thickness, tube }: { hole: HoleRect; thickness: number; tube: number }) {
-  const w = hole.x1 - hole.x0;
-  const h = hole.y1 - hole.y0;
-  const z = thickness / 2;
-  const members: { pos: [number, number, number]; size: [number, number, number] }[] = [
-    // Jambs run the full height of the opening, header spans between them.
-    { pos: [-(w + tube) / 2, 0, z], size: [tube, h + tube * 2, tube] },
-    { pos: [(w + tube) / 2, 0, z], size: [tube, h + tube * 2, tube] },
-    { pos: [0, (h + tube) / 2, z], size: [w, tube, tube] },
-  ];
-  if (hole.y0 > 0.05) members.push({ pos: [0, -(h + tube) / 2, z], size: [w, tube, tube] });
-
-  return (
-    <group>
-      {members.map((m, i) => (
-        <mesh key={i} position={m.pos} castShadow receiveShadow>
-          <boxGeometry args={m.size} />
-          <meshStandardMaterial color="#c3c8cc" metalness={0.18} roughness={0.52} />
-        </mesh>
-      ))}
-    </group>
-  );
-}
-
 function OpeningMesh({
   hole,
   thickness,
-  tube,
   trim,
 }: {
   hole: HoleRect;
   thickness: number;
-  tube: number;
   trim: ColorOption;
 }) {
   const w = hole.x1 - hole.x0;
@@ -160,7 +129,8 @@ function OpeningMesh({
 
   return (
     <group position={[cx, cy, 0]}>
-      <FrameOut hole={hole} thickness={thickness} tube={tube} />
+      {/* The frame-out steel (jambs, header, sill) is part of the frame, in
+          core/geometry.ts, so it also shows with the panels off. */}
 
       {/* Casing: top, bottom, left, right. A framed opening gets steel only. */}
       <group visible={category !== 'framed'}>
@@ -402,7 +372,6 @@ function Wall({
           key={hole.opening.id}
           hole={hole}
           thickness={t}
-          tube={catalog.rules.tubeSize}
           trim={skin.trimColor}
         />
       ))}
