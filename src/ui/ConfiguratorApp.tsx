@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Audience, BuildingConfig, Catalog } from '../core/types';
 import { buildGeometry } from '../core/geometry';
-import { money, priceBuilding } from '../core/pricing';
+import { monthlyPayment, money, priceBuilding } from '../core/pricing';
 import { normalizeConfig } from '../core/validate';
 import { defaultConfigFor } from '../core/catalog';
 import { readConfigFromUrl, shareLinkFor, writeConfigToUrl } from '../core/serialize';
@@ -101,6 +101,7 @@ export default function ConfiguratorApp({
 
   const geo = useMemo(() => buildGeometry(cfg, catalog), [cfg, catalog]);
   const quote = useMemo(() => priceBuilding(cfg, catalog, geo), [cfg, catalog, geo]);
+  const monthly = monthlyPayment(catalog, quote.total);
 
   // Keep the URL in step with the design so a refresh or a copied link works.
   useEffect(() => {
@@ -374,6 +375,23 @@ export default function ConfiguratorApp({
           onShare={share}
           shareLabel="Save & share design"
         />
+
+        {/* Phones only: the total and the main action stay in reach while the
+            full breakdown sits in the page below the options. */}
+        <div className="mobile-bar">
+          <div className="grow">
+            <div className="t">{money(quote.total)}</div>
+            <div className="s">
+              {monthly > 0 && <>from {money(monthly)}/mo &middot; </>}
+              <button onClick={() => document.getElementById('price-details')?.scrollIntoView({ behavior: 'smooth' })}>
+                See details
+              </button>
+            </div>
+          </div>
+          <button className="btn primary" onClick={() => setQuoteOpen(true)}>
+            {audience === 'internal' ? 'Quote sheet' : 'Request my quote'}
+          </button>
+        </div>
       </div>
 
       {quoteOpen && (

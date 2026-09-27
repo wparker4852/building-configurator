@@ -36,7 +36,7 @@ export default function PriceSummary({
   const internal = audience === 'internal';
 
   return (
-    <div className="rail">
+    <div className="rail" id="price-details">
       <div className="price-head">
         <div className="price-label">{internal ? 'Sell price' : 'Your price'}</div>
         <div className="price-total">{money(quote.total)}</div>

@@ -36,7 +36,8 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-button { font-family: inherit; cursor: pointer; }
+/* color: inherit stops iOS Safari painting button text system blue. */
+button { font-family: inherit; color: inherit; cursor: pointer; }
 input, select, textarea { font-family: inherit; font-size: 13px; color: var(--text); }
 
 /* ── Shell ────────────────────────────────────────────────────────────────── */
@@ -668,13 +669,58 @@ table.grid .num { text-align: right; font-variant-numeric: tabular-nums; }
   .rail .cta { flex: 1 1 240px; border-top: none; flex-direction: row; align-items: center; }
 }
 
+/* Compact price bar pinned to the bottom on phones; hidden elsewhere. */
+.mobile-bar { display: none; }
+
 @media (max-width: 760px) {
+  /* Header: logo and actions only, on one line. */
+  .topbar { height: 56px; padding: 0 12px; gap: 8px; }
+  .brand .logo { height: 36px; }
+  .brand .divider, .brand .product, .topbar .badge:not(.internal) { display: none; }
+
+  /* One scrolling column: 3D view, options, then the full price breakdown
+     in normal flow. Only the slim bar below stays pinned. */
   .layout { display: flex; flex-direction: column; overflow-y: auto; }
   .stage { height: 46vh; min-height: 300px; order: -1; flex: none; }
+  /* Keep natural height: shrinking to fit the screen is what made the options
+     and the price breakdown spill over each other. The column scrolls instead. */
+  .layout > * { flex-shrink: 0; min-height: auto; }
   .panel { border-right: none; border-bottom: 1px solid var(--border); overflow: visible; }
-  .rail { position: sticky; bottom: 0; box-shadow: 0 -4px 18px rgba(0, 0, 0, 0.1); }
+  .rail { position: static; flex-direction: column; flex-wrap: nowrap; overflow: visible; border-top: 1px solid var(--border); }
+  .rail .price-head { flex: none; border-bottom: 1px solid var(--border); }
+  .rail .lines { display: block; }
+  .rail .cta { flex-direction: column; align-items: stretch; }
   .swatches { grid-template-columns: repeat(6, 1fr); }
   .cards { grid-template-columns: 1fr; }
+
+  .mobile-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    position: sticky;
+    bottom: 0;
+    z-index: 20;
+    flex: none;
+    background: var(--bg);
+    border-top: 3px solid var(--accent);
+    box-shadow: 0 -4px 18px rgba(0, 0, 0, 0.12);
+    padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+  }
+  .mobile-bar .grow { flex: 1; min-width: 0; }
+  .mobile-bar .t { font-family: var(--font-display); font-weight: 700; font-size: 22px; line-height: 1.1; }
+  .mobile-bar .s { font-size: 12px; color: var(--text-2); }
+  .mobile-bar .s button { border: none; background: none; padding: 0; text-decoration: underline; font-size: 12px; color: var(--text); }
+  .mobile-bar .btn { width: auto; white-space: nowrap; }
+
+  /* View tools: presets wrap along the top, panel toggles move to the bottom
+     of the 3D view so the two rows cannot collide. */
+  .stage-tools { right: 12px; row-gap: 6px; }
+  .stage-tools.right { top: auto; bottom: 10px; left: 12px; right: 12px; justify-content: flex-end; }
+  .stage-hint { bottom: 52px; }
+  .stage-hint.frame-note { bottom: 52px; }
+
+  /* 16px inputs stop iOS zooming the page on focus. */
+  input, select, textarea { font-size: 16px; }
 }
 
 /* ── Admin: add a part ─────────────────────────────────────────────────────── */
