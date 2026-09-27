@@ -11,6 +11,16 @@ import { Field, OptionRow, Section, Segmented, Slider, Stepper, Swatches } from 
 import { SUPPLIERS, getSupplier } from '../core/suppliers';
 import SupplierPicker from './SupplierPicker';
 import { bowCount } from '../core/pricebook';
+import { feetInches } from '../core/format';
+import type { LegStyle } from '../core/types';
+
+const STATE_NAMES: Record<string, string> = {
+  NC: 'North Carolina', SC: 'South Carolina', GA: 'Georgia', VA: 'Virginia', TN: 'Tennessee', FL: 'Florida',
+};
+
+function legStyleNote(style: LegStyle): string {
+  return style === 'double' ? ' — double leg' : style === 'ladder' ? ' — ladder leg' : '';
+}
 
 
 export default function OptionPanel({
@@ -32,6 +42,7 @@ export default function OptionPanel({
   const roofStyle = catalog.roofStyles.find((r) => r.id === cfg.roofStyle);
   const roofBuild = catalog.roofBuilds.find((b) => b.id === cfg.roofBuild);
   const supplier = getSupplier(cfg.supplierId);
+  const gauge = catalog.gauges.find((g) => g.id === cfg.gaugeId);
 
   const categoryNames = [...new Set(catalog.models.map((m) => m.category))];
   // The category tabs follow the selected model unless the user browses away.
@@ -103,12 +114,15 @@ export default function OptionPanel({
             ))}
           </select>
         </Field>
-        <Field label="Leg height" note={`Peak reaches ${geo.metrics.peakHeight.toFixed(1)}'`}>
+        <Field
+          label="Leg height"
+          note={`Peak reaches ${geo.metrics.peakHeight.toFixed(1)}' · ${feetInches(geo.metrics.sideClearHeight)} clear at the wall, ${feetInches(geo.metrics.clearHeight)} under the truss`}
+        >
           <select value={cfg.eaveHeight} onChange={(e) => update({ eaveHeight: Number(e.target.value) })}>
             {supplier.legHeightsFor(cfg.width).map((h) => (
               <option key={h} value={h}>
                 {h}&prime;{h === supplier.standardLegHeightFor(cfg.width) ? ' (standard)' : ''}
-                {h >= 14 ? ' — double leg' : ''}
+                {legStyleNote(supplier.legStyleFor(cfg.width, h))}
               </option>
             ))}
           </select>
@@ -167,6 +181,7 @@ export default function OptionPanel({
           value={cfg.gaugeId}
           onChange={(gaugeId) => update({ gaugeId })}
         />
+        {gauge && <span className="field-note">{gauge.description}</span>}
 
         <span className="field-note">
           Every building from {supplier.name} is engineer certified.
@@ -258,10 +273,15 @@ export default function OptionPanel({
 
       <Section title="Roof">
         <Segmented
-          options={model.allowedRoofStyles.map((r) => ({
-            value: r,
-            label: catalog.roofStyles.find((x) => x.id === r)?.name.split(' ')[0] ?? r,
-          }))}
+          options={model.allowedRoofStyles.map((r) => {
+            const style = catalog.roofStyles.find((x) => x.id === r);
+            return {
+              value: r,
+              label: style?.name.split(' ')[0] ?? r,
+              // Single slope stops at 30' wide.
+              disabled: style?.maxWidth != null && cfg.width > style.maxWidth,
+            };
+          })}
           value={cfg.roofStyle}
           onChange={(roofStyle: RoofStyleId) => update({ roofStyle })}
         />
@@ -356,6 +376,19 @@ export default function OptionPanel({
           </div>
         </Section>
       ))}
+
+      <Section title="Delivery">
+        <Field label="Delivery state" note="Sets the sales tax on the quote.">
+          <select value={cfg.state ?? ''} onChange={(e) => update({ state: e.target.value || undefined })}>
+            <option value="">Not chosen yet</option>
+            {Object.keys(catalog.rules.taxByState ?? {}).map((st) => (
+              <option key={st} value={st}>
+                {STATE_NAMES[st] ?? st}
+              </option>
+            ))}
+          </select>
+        </Field>
+      </Section>
 
       {audience === 'internal' && (
         <Section title="Internal">

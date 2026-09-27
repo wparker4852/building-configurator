@@ -31,6 +31,36 @@ export type TextureKind = 'ribbed' | 'lap' | 'shingle' | 'smooth' | 'board-batte
 
 export const WALL_IDS: WallId[] = ['front', 'back', 'left', 'right'];
 
+/**
+ * How the sidewall legs are built. Tall buildings double the leg, and taller
+ * still spread the pair apart and weld rungs between them (a ladder leg).
+ * Which one applies is the supplier's call; see `Supplier.legStyleFor`.
+ */
+export type LegStyle = 'single' | 'double' | 'ladder';
+
+/**
+ * Something parked on the 2D floor plan to check fit — a truck, a lift, a
+ * workbench. Positions are in feet from the building center, +x toward the
+ * right wall and +y toward the front. Not priced; it travels with the design
+ * so a salesperson sees the same layout the customer drew.
+ */
+export interface PlanItem {
+  id: string;
+  /** References a FLOOR_PLAN_ITEMS preset id, or 'custom'. */
+  kind: string;
+  label: string;
+  /** Footprint in feet: w across, h along the item's own length. */
+  w: number;
+  h: number;
+  x: number;
+  y: number;
+  /** Height in feet, for the 3D stand-in and the headroom check. */
+  tall?: number;
+  /** Degrees, multiples of 90. */
+  rot: number;
+  color: string;
+}
+
 /** A door or window placed on a wall. */
 export interface Opening {
   /** Instance id, unique within the config. */
@@ -108,6 +138,10 @@ export interface BuildingConfig {
   discountPct?: number;
   /** Delivery ZIP, used for the freight estimate. */
   zip?: string;
+  /** Delivery state (two-letter code); picks the tax rate when one is set. */
+  state?: string;
+  /** Vehicles and equipment laid out on the 2D floor plan. */
+  planItems?: PlanItem[];
 }
 
 // ── Catalog ──────────────────────────────────────────────────────────────────
@@ -154,6 +188,12 @@ export interface ColorOption {
   upchargePerSqFt: number;
   /** Metalness hint for the renderer, 0..1. */
   metallic?: number;
+  /**
+   * Printed finish. Wood- and stone-look panels are premium prints on the same
+   * steel; `variant` picks the grain or stone pattern.
+   */
+  finish?: 'metal' | 'wood' | 'stone';
+  variant?: string;
 }
 
 export interface MaterialOption {
@@ -191,6 +231,9 @@ export interface OpeningType {
   maxHeight?: number;
   /** Added per square foot of opening, for resizable types. */
   pricePerSqFt?: number;
+  /** Part number, for ordering. */
+  sku?: string;
+  description?: string;
 }
 
 export interface FloorOption {
@@ -200,6 +243,8 @@ export interface FloorOption {
   /** Rendered slab thickness in feet; 0 renders as a flat pad. */
   thickness: number;
   hex: string;
+  /** Surface pattern painted on the slab. */
+  texture?: 'concrete' | 'asphalt' | 'gravel' | 'dirt' | 'wood';
 }
 
 /** What an add-on's unit price is multiplied by. */
@@ -217,6 +262,8 @@ export interface AddOn {
   maxQty?: number;
   /** Hide from the customer-facing configurator. */
   internalOnly?: boolean;
+  /** Part number, for ordering. */
+  sku?: string;
 }
 
 export interface RoofStyleOption {
@@ -228,6 +275,8 @@ export interface RoofStyleOption {
   params?: { breakFraction: number; lowerPitch: number };
   minPitch: number;
   maxPitch: number;
+  /** Widest building this silhouette is offered on. */
+  maxWidth?: number;
 }
 
 export interface RoofBuildOption {
@@ -250,6 +299,8 @@ export interface GaugeOption {
   name: string;
   description: string;
   priceMultiplier: number;
+  /** Outside dimension of this gauge's square tube, in feet. */
+  tubeSize?: number;
 }
 
 export interface PricingRules {
@@ -264,6 +315,11 @@ export interface PricingRules {
   costFactors: Record<string, number>;
   defaultCostFactor: number;
   taxRate: number;
+  /**
+   * Sales tax by delivery state, overriding `taxRate` when the customer picks
+   * a state. State base rates only; local add-ons are not modelled.
+   */
+  taxByState?: Record<string, number>;
   freight: { baseCharge: number; perMile: number; freeRadiusMiles: number; defaultMiles: number };
   /** Drives the "as low as $X/mo" estimate. */
   financing: { months: number; apr: number; downPct: number };

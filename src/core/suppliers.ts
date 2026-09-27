@@ -11,13 +11,14 @@
 import selectRaw from '../data/pricebooks/select-steel.json';
 import wideRaw from '../data/pricebooks/select-steel-wide.json';
 import sbsiRaw from '../data/pricebooks/sbsi-clearspan.json';
-import type { OnCenter, RoofBuild } from './types';
+import type { LegStyle, OnCenter, RoofBuild } from './types';
 import { bowCount, selectBase, selectEndClosed, selectLegHeightUpcharge, selectSidesClosed } from './pricebook';
 
 type Num = Record<string, number>;
 type Num2 = Record<string, Num>;
 
 const select = selectRaw as unknown as {
+  doubleLegFromHeight: number;
   onCenter: Record<string, { lengthsByRoof: Record<string, number[]>; widths: number[]; options: { gauge12: Num } }>;
   shared: {
     perBow: Num; perLinearFoot: Num; rollUpDoors: Num; doorsAndWindows: Num;
@@ -31,7 +32,7 @@ const wide = wideRaw as unknown as {
 };
 const sbsi = sbsiRaw as unknown as {
   widths: number[]; roofLengths: number[]; base: Num;
-  legStyleByWidth: { minWidth: number; maxWidth: number; onCenter: number }[];
+  legStyleByWidth: { minWidth: number; maxWidth: number; legStyle: string; onCenter: number }[];
   legHeight: { rows: Num2; ladderLegsIncludedFromHeight: number };
   sidesClosed: { rows: Num2; verticalUpcharge: Num; verticalIncludedFromHeight: number };
   endClosed: { rows: Num2; verticalUpchargePerEnd: Num; verticalIncludedFromHeight: number };
@@ -111,6 +112,11 @@ export interface Supplier {
   /** True when the book dictates frame spacing rather than offering a choice. */
   onCenterFixedFor(width: number): boolean;
   onCenterFor(width: number): OnCenter;
+  /**
+   * How the sidewall legs are built at this size, per the book. The geometry
+   * draws exactly this, so the frame on screen is the frame being priced.
+   */
+  legStyleFor(width: number, legHeight: number): LegStyle;
   quote(input: StructureInput): SupplierQuote;
   components(): ComponentDef[];
 }
@@ -182,6 +188,12 @@ const selectSteel: Supplier = {
   overhangsFor: (w) => (isWide(w) ? [0] : [0, 1]),
   onCenterFixedFor: (w) => isWide(w),
   onCenterFor: (w) => (isWide(w) ? 4 : 5),
+  // Standard book: double leg + double baserail from 14'. Wide book: 8' single,
+  // double above that, ladder from 13'.
+  legStyleFor: (w, h) =>
+    isWide(w)
+      ? (h >= 13 ? 'ladder' : h > wide.standardLegHeight ? 'double' : 'single')
+      : (h >= select.doubleLegFromHeight ? 'double' : 'single'),
   lengthsFor: (roofBuild, onCenter, width) =>
     isWide(width) ? wide.lengths : (select.onCenter[String(onCenter)]?.lengthsByRoof[roofBuild] ?? []),
   components: selectComponents,
@@ -364,6 +376,13 @@ const sbsiSupplier: Supplier = {
   onCenterFor(width) {
     const band = sbsi.legStyleByWidth.find((b) => width >= b.minWidth && width <= b.maxWidth);
     return (band?.onCenter === 4 ? 4 : 5) as OnCenter;
+  },
+  // Double legs throughout the 32'-50' band, ladder legs on 52'-60' and on
+  // anything tall enough that the book includes them.
+  legStyleFor(width, legHeight) {
+    const band = sbsi.legStyleByWidth.find((b) => width >= b.minWidth && width <= b.maxWidth);
+    if (band?.legStyle === 'ladder' || legHeight >= sbsi.legHeight.ladderLegsIncludedFromHeight) return 'ladder';
+    return 'double';
   },
   lengthsFor: () => sbsi.roofLengths,
   components: sbsiComponents,

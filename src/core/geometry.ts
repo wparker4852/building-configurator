@@ -7,12 +7,14 @@
 import type {
   BuildingConfig,
   Catalog,
+  LegStyle,
   Opening,
   OpeningType,
   RoofStyleOption,
   WallId,
 } from './types';
 import { WALL_IDS } from './types';
+import { getSupplier } from './suppliers';
 
 export interface Pt {
   x: number;
@@ -61,12 +63,20 @@ export interface RoofPlane {
   area: number;
 }
 
+/** What a frame member is, for a cut list and for anyone reading the frame. */
+export type MemberKind =
+  | 'leg' | 'bow' | 'base-rail' | 'eave-rail' | 'knee-brace' | 'peak-brace'
+  | 'bottom-chord' | 'chord-strut' | 'hat-channel' | 'endwall-stud' | 'ladder-rung';
+
 /** One length of square tubing in the frame. */
 export interface TubeMember {
+  kind: MemberKind;
   position: [number, number, number];
   /** Euler XYZ. Bow segments rotate about Z by their slope. */
   rotation: [number, number, number];
   size: [number, number, number];
+  /** Part of the leg upgrade the book charges for: second leg, its base rail, rungs. */
+  upgrade?: boolean;
 }
 
 export interface BuildingGeometry {
@@ -79,6 +89,10 @@ export interface BuildingGeometry {
   frame: TubeMember[];
   eaves: { left: number; right: number };
   rounded: boolean;
+  /** Leg construction the supplier specifies at this size. */
+  legStyle: LegStyle;
+  /** Outside dimension of the frame tube for the chosen gauge. */
+  tube: number;
   metrics: Metrics;
 }
 
@@ -93,6 +107,56 @@ export interface Metrics {
   peakHeight: number;
   /** Sum of every opening's rough area. */
   openingArea: number;
+  /** Inside face to inside face of the innermost legs — what a vehicle has to fit through. */
+  clearWidth: number;
+  /** Inside face to inside face of the end bents. */
+  clearLength: number;
+  /** Headroom under the lowest member on the centerline (peak brace or bottom chord). */
+  clearHeight: number;
+  /** Headroom at the sidewall, under the bow at the leg. */
+  sideClearHeight: number;
+}
+
+/**
+ * Fixed dimensions of the tube-steel system, per the Walker Buildings frame
+ * spec. These are fabrication facts, not prices, so they live here rather than
+ * in the catalog.
+ */
+export const FRAME_SPEC = {
+  /** Clear gap between the two legs of a ladder leg. */
+  ladderGap: 7 / 12,
+  /** Drawn gap between the welded pair of a double leg, so it reads as two tubes. */
+  doubleLegReveal: 0.5 / 12,
+  /** Ladder rungs, on center, starting one spacing above the base rail. */
+  ladderRungSpacing: 20 / 12,
+  /** Hat channel: 3" wide, 1⅛" tall. First run 1' down the slope from the ridge, then every 4'. */
+  hatChannel: { width: 3 / 12, height: 1.125 / 12, firstFromRidge: 1, spacing: 4 },
+  /** Radius of the bend at the apex of a squared bow, in tube widths. */
+  apexBendTubes: 2,
+  /** Endwall studs are set at most this far apart, evenly spaced. */
+  endwallStudSpacing: 5,
+} as const;
+
+/** Peak brace length on a narrow gable: 2' to 18' wide, 4' to 20', 6' beyond. */
+export function peakBraceLength(width: number): number {
+  return width <= 18 ? 2 : width <= 20 ? 4 : 6;
+}
+
+/** Widths from which a bottom chord replaces the peak brace. */
+export const BOTTOM_CHORD_FROM_WIDTH = 25;
+
+/**
+ * Bottom chord length: 16' at 25–26' wide, 18' at 27–28', 20' at 29–30' — the
+ * width rounded up to even, less 10'. The spec stops at 30'; wider clear spans
+ * continue the same rule.
+ */
+export function bottomChordLength(width: number): number {
+  return 2 * Math.ceil(width / 2) - 10;
+}
+
+/** Knee brace (leg to bow, 45°): 3' on legs under 8', 4' otherwise. */
+export function kneeBraceLength(legHeight: number): number {
+  return legHeight < 8 ? 3 : 4;
 }
 
 const WALL_LABELS: Record<WallId, string> = {
@@ -102,16 +166,18 @@ const WALL_LABELS: Record<WallId, string> = {
   right: 'Right side',
 };
 
-/** Which walls are actually built for a given enclosure. */
+/**
+ * Which walls are actually built. Read from the same two fields the price book
+ * charges for — sides as a pair, each gable end on its own — so what is drawn
+ * is always what is priced. A single closed end is the back one.
+ */
 export function wallsPresent(cfg: BuildingConfig): Record<WallId, boolean> {
-  if (cfg.enclosure === 'enclosed') {
-    return { front: true, back: true, left: true, right: true };
-  }
-  if (cfg.enclosure === 'partial') {
-    // Open on the front gable end, closed on the other three sides.
-    return { front: false, back: true, left: true, right: true };
-  }
-  return { front: false, back: false, left: false, right: false };
+  return {
+    front: cfg.endsClosed >= 2,
+    back: cfg.endsClosed >= 1,
+    left: cfg.sidesClosed,
+    right: cfg.sidesClosed,
+  };
 }
 
 /** Length in feet of a given wall. */
@@ -446,113 +512,307 @@ function buildRoof(cfg: BuildingConfig, catalog: Catalog, profile: Pt[], rounded
   return planes;
 }
 
+/** A span along one axis, [from, to], in world feet. */
+type Span = [number, number];
+
+/**
+ * Split a run from `a` to `b` around the given cuts, dropping any piece too
+ * short to be a real length of tube. Base rails are cut out at every door.
+ */
+function splitRun(a: number, b: number, cuts: Span[], minLen: number): Span[] {
+  const sorted = cuts
+    .map(([c0, c1]) => [Math.max(a, Math.min(c0, c1)), Math.min(b, Math.max(c0, c1))] as Span)
+    .filter(([c0, c1]) => c1 > c0)
+    .sort((p, q) => p[0] - q[0]);
+  const out: Span[] = [];
+  let cursor = a;
+  for (const [c0, c1] of sorted) {
+    if (c0 > cursor) out.push([cursor, c0]);
+    cursor = Math.max(cursor, c1);
+  }
+  if (b > cursor) out.push([cursor, b]);
+  return out.filter(([s0, s1]) => s1 - s0 >= minLen);
+}
+
+interface WorldHole {
+  span: Span;
+  y0: number;
+  y1: number;
+}
+
+/**
+ * Where each built wall's openings fall in world coordinates: along X for the
+ * gable ends, along Z for the sides. Wall-local x maps to world as:
+ *   front  x -> x     back  x -> -x     right  x -> -z     left  x -> z
+ */
+function worldOpenings(walls: WallSpec[]) {
+  const ends: Record<'front' | 'back', WorldHole[]> = { front: [], back: [] };
+  const sides: Record<'left' | 'right', WorldHole[]> = { left: [], right: [] };
+  for (const wall of walls) {
+    if (!wall.present) continue;
+    for (const h of wall.holes) {
+      const at = (span: Span): WorldHole => ({ span, y0: h.y0, y1: h.y1 });
+      if (wall.id === 'front') ends.front.push(at([h.x0, h.x1]));
+      else if (wall.id === 'back') ends.back.push(at([-h.x1, -h.x0]));
+      else if (wall.id === 'right') sides.right.push(at([-h.x1, -h.x0]));
+      else sides.left.push(at([h.x0, h.x1]));
+    }
+  }
+  return { ends, sides };
+}
+
+interface FrameResult {
+  members: TubeMember[];
+  clearWidth: number;
+  clearLength: number;
+  clearHeight: number;
+  sideClearHeight: number;
+}
+
 /**
  * The tube-steel frame: a bent at every leg position along the length, plus
- * the rails and purlins that tie them together. This is the actual structure
- * of the building, and on an open carport it is most of what you see.
+ * the rails, braces and purlins that tie them together. This is the actual
+ * structure of the building, and on an open carport it is most of what you see.
+ *
+ * Member sizes, spacings and bracing rules follow the Walker Buildings frame
+ * spec (see FRAME_SPEC); which leg construction to draw comes from the
+ * supplier's book, so the frame on screen is the one being priced.
  */
-function buildFrame(cfg: BuildingConfig, catalog: Catalog, bowProfile: Pt[], purlins: boolean): TubeMember[] {
-  const { tubeSize: tube, wallThickness: wt } = catalog.rules;
+function buildFrame(
+  cfg: BuildingConfig,
+  catalog: Catalog,
+  opts: {
+    /** The line the bow is bent to, curl and apex bend included. */
+    bowPath: Pt[];
+    baseProfile: Pt[];
+    purlins: boolean;
+    rounded: boolean;
+    legStyle: LegStyle;
+    tube: number;
+    walls: WallSpec[];
+  },
+): FrameResult {
+  const { bowPath, baseProfile, purlins, rounded, legStyle, tube, walls } = opts;
+  const wt = catalog.rules.wallThickness;
   const members: TubeMember[] = [];
   const halfL = cfg.length / 2;
+  const present = wallsPresent(cfg);
+  const { ends: endHoles, sides: sideHoles } = worldOpenings(walls);
+
   // Pull the frame inboard so the panels, which hang on its outside, are the
   // outermost surface.
   const inset = wt + tube / 2;
   const legX = cfg.width / 2 - inset;
 
   // The roof panel rides on top of the bow, so the underside of the bow — and
-  // therefore the top of every leg — is one tube below the profile line.
-  const bowUnderside = (x: number) => profileHeightAt(bowProfile, x) - tube;
-  const legTop = { left: bowUnderside(-legX), right: bowUnderside(legX) };
+  // therefore the top of every leg — is one tube below the path line.
+  const bowUnderside = (x: number) => profileHeightAt(bowPath, x) - tube;
+
+  // The second leg of a double or ladder leg sits inboard of the first: a
+  // double is a welded pair (drawn with a ½" reveal so the two tubes read as
+  // two), a ladder has a 7" gap.
+  const innerOffset =
+    legStyle === 'double' ? tube + FRAME_SPEC.doubleLegReveal : legStyle === 'ladder' ? tube + FRAME_SPEC.ladderGap : 0;
+  const legLines = innerOffset > 0 ? [legX, legX - innerOffset] : [legX];
+  const innerLegX = legLines[legLines.length - 1];
 
   const bentCount = Math.max(2, Math.round(cfg.length / cfg.onCenter) + 1);
   // The end bents sit behind the endwall panels, not in their plane.
   const zSpan = cfg.length - 2 * wt;
+  const bentZ = Array.from({ length: bentCount }, (_, i) => -halfL + wt + (zSpan * i) / (bentCount - 1));
+  const endZ = { back: bentZ[0], front: bentZ[bentZ.length - 1] };
 
-  for (let i = 0; i < bentCount; i++) {
-    const z = -halfL + wt + (zSpan * i) / (bentCount - 1);
+  // While set, members are flagged as part of the leg upgrade (the second leg,
+  // its base rail, ladder rungs) so the viewer can pick them out.
+  let upgrading = false;
+  const add = (m: TubeMember) => members.push(upgrading ? { ...m, upgrade: true } : m);
 
-    // Legs, stopping cleanly under the bow rather than at the nominal eave.
+  /** A straight tube in the plane of a bent, from a to b. */
+  const straight = (kind: MemberKind, a: Pt, b: Pt, z: number, thick = tube) => {
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const len = Math.hypot(dx, dy);
+    if (len < 1e-3) return;
+    add({
+      kind,
+      position: [(a.x + b.x) / 2, (a.y + b.y) / 2, z],
+      rotation: [0, 0, Math.atan2(dy, dx)],
+      size: [len, thick, thick],
+    });
+  };
+  const alongZ = (kind: MemberKind, x: number, y: number, z0: number, z1: number) => {
+    add({ kind, position: [x, y, (z0 + z1) / 2], rotation: [0, 0, 0], size: [tube, tube, z1 - z0] });
+  };
+  /** A vertical member from y0 to y1, broken around any opening it would pass through. */
+  const upright = (kind: MemberKind, x: number, z: number, y0: number, y1: number, holes: WorldHole[]) => {
+    const gaps: Span[] = holes.map((h) => [h.y0 - tube, h.y1 + tube]);
+    for (const [s0, s1] of splitRun(y0, y1, gaps, tube)) {
+      add({ kind, position: [x, (s0 + s1) / 2, z], rotation: [0, 0, 0], size: [tube, s1 - s0, tube] });
+    }
+  };
+  /** Openings in the built side wall at `side` whose span takes in world z. */
+  const sideHolesAt = (side: -1 | 1, z: number) =>
+    present[side < 0 ? 'left' : 'right']
+      ? (side < 0 ? sideHoles.left : sideHoles.right).filter((h) => z > h.span[0] - tube && z < h.span[1] + tube)
+      : [];
+
+  const isGable = baseProfile.length === 3;
+
+  // ── Bents ────────────────────────────────────────────────────────────────
+  bentZ.forEach((z, i) => {
+    const isEnd = i === 0 || i === bentZ.length - 1;
+
     for (const side of [-1, 1] as const) {
-      const h = side < 0 ? legTop.left : legTop.right;
-      members.push({
-        position: [side * legX, h / 2, z],
-        rotation: [0, 0, 0],
-        size: [tube, h, tube],
+      // Legs, stopping cleanly under the bow rather than at the nominal eave.
+      // A leg that lands in a sidewall opening is cut out there; the header
+      // of the frame-out carries what is left above it.
+      const holes = sideHolesAt(side, z);
+      legLines.forEach((lx, k) => {
+        upgrading = k > 0;
+        upright('leg', side * lx, z, 0, bowUnderside(side * lx), holes);
       });
+
+      // Ladder rungs welded across the pair.
+      if (legStyle === 'ladder') {
+        const top = bowUnderside(side * innerLegX) - FRAME_SPEC.ladderRungSpacing / 2;
+        for (let y = tube + FRAME_SPEC.ladderRungSpacing; y <= top; y += FRAME_SPEC.ladderRungSpacing) {
+          if (holes.some((h) => y > h.y0 - tube && y < h.y1 + tube)) continue;
+          straight('ladder-rung', { x: side * legX, y }, { x: side * innerLegX, y }, z);
+        }
+      }
+      upgrading = false;
     }
 
-    // Bow: one tube per straight run of the roof profile, tucked under the panels.
-    for (let s = 0; s < bowProfile.length - 1; s++) {
-      const a = bowProfile[s];
-      const b = bowProfile[s + 1];
-      const dx = b.x - a.x;
-      const dy = b.y - a.y;
-      const len = Math.hypot(dx, dy);
-      if (len < 1e-6) continue;
-      const angle = Math.atan2(dy, dx);
+    // Bow: one tube per straight run of the bent path, tucked under the panels.
+    for (let s = 0; s < bowPath.length - 1; s++) {
+      const a = bowPath[s];
+      const b = bowPath[s + 1];
+      const angle = Math.atan2(b.y - a.y, b.x - a.x);
       // Offset perpendicular, below the roof line.
       const px = -Math.sin(angle) * (tube / 2);
       const py = Math.cos(angle) * (tube / 2);
+      straight('bow', { x: a.x - px, y: a.y - py }, { x: b.x - px, y: b.y - py }, z);
+    }
+
+    // Knee brace at 45° from the inboard leg up to the bow. An end bent with
+    // its endwall closed is braced by the endwall studs instead.
+    const endClosed = isEnd && (i === 0 ? present.back : present.front);
+    if (!endClosed) {
+      for (const side of [-1, 1] as const) {
+        const face = side * (innerLegX - tube / 2);
+        const top = bowUnderside(side * innerLegX);
+        const reach = Math.min(kneeBraceLength(cfg.eaveHeight) / Math.SQRT2, top * 0.4, innerLegX * 0.45);
+        if (reach < 0.6) continue;
+        const headX = face - side * reach;
+        straight('knee-brace', { x: face, y: top - reach }, { x: headX, y: bowUnderside(headX) }, z, tube * 0.9);
+      }
+    }
+
+    // Peak bracing, on the interior bents of a gable. Narrow buildings get a
+    // short brace under the apex; from 25' wide, a bottom chord on two struts.
+    if (!isGable || isEnd) return;
+    if (cfg.width < BOTTOM_CHORD_FROM_WIDTH) {
+      const len = Math.min(peakBraceLength(cfg.width), innerLegX);
+      const y = bowUnderside(len / 2) - tube / 2;
+      straight('peak-brace', { x: -len / 2, y }, { x: len / 2, y }, z);
+    } else {
+      const half = Math.min(bottomChordLength(cfg.width), 2 * innerLegX - 2) / 2;
+      // Set the chord so its ends land on the underside of the bow, which
+      // keeps it inside the roof at every pitch.
+      const top = bowUnderside(half);
+      straight('bottom-chord', { x: -half, y: top - tube / 2 }, { x: half, y: top - tube / 2 }, z);
+      for (const sx of [-half / 2, half / 2]) {
+        straight('chord-strut', { x: sx, y: top }, { x: sx, y: bowUnderside(sx) }, z);
+      }
+    }
+  });
+
+  // ── Rails and purlins running the length ─────────────────────────────────
+  const zFrom = endZ.back - tube / 2;
+  const zTo = endZ.front + tube / 2;
+  for (const side of [-1, 1] as const) {
+    // Base rails are cut out where a door comes down to the floor.
+    const doors = present[side < 0 ? 'left' : 'right']
+      ? (side < 0 ? sideHoles.left : sideHoles.right).filter((h) => h.y0 < 0.05).map((h) => h.span)
+      : [];
+    legLines.forEach((lx, k) => {
+      upgrading = k > 0;
+      for (const [z0, z1] of splitRun(zFrom, zTo, doors, tube)) alongZ('base-rail', side * lx, tube / 2, z0, z1);
+    });
+    upgrading = false;
+    // Squared eaves carry an eave rail along the leg tops — it is what the
+    // boxed eave trim wraps and what vertical panels fasten to at the bottom.
+    if (!rounded) alongZ('eave-rail', side * legX, bowUnderside(side * legX) - tube / 2, zFrom, zTo);
+  }
+
+  // Hat channel under a vertical roof: first run 1' down from the high end of
+  // each slope, then every 4', sitting on the bows directly under the panels.
+  if (purlins) {
+    const hc = FRAME_SPEC.hatChannel;
+    for (let s = 0; s < baseProfile.length - 1; s++) {
+      const a = baseProfile[s];
+      const b = baseProfile[s + 1];
+      const [hi, lo] = a.y >= b.y ? [a, b] : [b, a];
+      const len = Math.hypot(lo.x - hi.x, lo.y - hi.y);
+      if (len < 1e-6) continue;
+      const ux = (lo.x - hi.x) / len;
+      const uy = (lo.y - hi.y) / len;
+      const angle = Math.atan2(b.y - a.y, b.x - a.x);
+      const nx = -Math.sin(angle);
+      const ny = Math.cos(angle);
+      for (let d = hc.firstFromRidge; d < len - hc.width; d += hc.spacing) {
+        members.push({
+          kind: 'hat-channel',
+          position: [hi.x + ux * d - (nx * hc.height) / 2, hi.y + uy * d - (ny * hc.height) / 2, 0],
+          rotation: [0, 0, angle],
+          size: [hc.width, hc.height, zTo - zFrom],
+        });
+      }
+    }
+  }
+
+  // ── Endwall framing, closed ends only ────────────────────────────────────
+  // Studs evenly spaced at no more than 5' between the corner legs, top cut to
+  // the bow and broken around openings. The base rail is cut out at each door.
+  const span = 2 * legX;
+  const bays = Math.max(1, Math.ceil(span / FRAME_SPEC.endwallStudSpacing - 1e-6));
+  for (const end of ['front', 'back'] as const) {
+    if (!present[end]) continue;
+    const z = endZ[end];
+    const holes = endHoles[end];
+    for (let k = 1; k < bays; k++) {
+      const x = -legX + (span * k) / bays;
+      const hit = holes.filter((h) => x > h.span[0] - tube && x < h.span[1] + tube);
+      upright('endwall-stud', x, z, tube, bowUnderside(x), hit);
+    }
+    const doors = holes.filter((h) => h.y0 < 0.05).map((h) => h.span);
+    for (const [x0, x1] of splitRun(-legX + tube / 2, legX - tube / 2, doors, tube)) {
       members.push({
-        position: [(a.x + b.x) / 2 - px, (a.y + b.y) / 2 - py, z],
-        rotation: [0, 0, angle],
-        size: [len, tube, tube],
+        kind: 'base-rail',
+        position: [(x0 + x1) / 2, tube / 2, z],
+        rotation: [0, 0, 0],
+        size: [x1 - x0, tube, tube],
       });
     }
-
-    // Knee brace: a real triangle with BOTH ends landing on steel — low end on
-    // the leg, high end on the underside of the bow inboard of the corner.
-    const reach = Math.min(1.8, Math.min(legTop.left, legTop.right) * 0.32);
-    if (reach > 0.6) {
-      for (const side of [-1, 1] as const) {
-        const xLeg = side * legX;
-        const xBow = xLeg - side * reach;
-        const foot = { x: xLeg, y: (side < 0 ? legTop.left : legTop.right) - reach };
-        const head = { x: xBow, y: bowUnderside(xBow) };
-        const dx = head.x - foot.x;
-        const dy = head.y - foot.y;
-        members.push({
-          position: [(foot.x + head.x) / 2, (foot.y + head.y) / 2, z],
-          rotation: [0, 0, Math.atan2(dy, dx)],
-          size: [Math.hypot(dx, dy), tube * 0.8, tube * 0.8],
-        });
-      }
-    }
   }
 
-  // Base rails tying the leg feet together down each side.
-  for (const side of [-1, 1] as const) {
-    members.push({
-      position: [side * legX, tube / 2, 0],
-      rotation: [0, 0, 0],
-      size: [tube, tube, zSpan],
-    });
+  // ── Clearances ───────────────────────────────────────────────────────────
+  const sideClearHeight = Math.min(bowUnderside(-innerLegX), bowUnderside(innerLegX));
+  let clearHeight = sideClearHeight;
+  if (isGable) {
+    const lowest = members
+      .filter((m) => m.kind === 'peak-brace' || m.kind === 'bottom-chord')
+      .map((m) => m.position[1] - m.size[1] / 2);
+    clearHeight = lowest.length ? Math.min(...lowest) : bowUnderside(0);
   }
 
-  // Hat channel under a vertical roof, running the length at intervals up the slope.
-  if (purlins) {
-    const step = 2.5;
-    for (let s = 0; s < bowProfile.length - 1; s++) {
-      const a = bowProfile[s];
-      const b = bowProfile[s + 1];
-      const len = Math.hypot(b.x - a.x, b.y - a.y);
-      const count = Math.max(1, Math.floor(len / step));
-      const angle = Math.atan2(b.y - a.y, b.x - a.x);
-      for (let k = 1; k <= count; k++) {
-        const t = k / (count + 1);
-        const px = -Math.sin(angle) * tube;
-        const py = Math.cos(angle) * tube;
-        members.push({
-          position: [a.x + (b.x - a.x) * t - px, a.y + (b.y - a.y) * t - py, 0],
-          rotation: [0, 0, 0],
-          size: [tube * 0.8, tube * 0.55, zSpan],
-        });
-      }
-    }
-  }
-
-  return members;
+  return {
+    members,
+    clearWidth: 2 * innerLegX - tube,
+    clearLength: zSpan - tube,
+    clearHeight,
+    sideClearHeight,
+  };
 }
 
 /** Build the full geometry for a configuration. */
@@ -560,6 +820,8 @@ export function buildGeometry(cfg: BuildingConfig, catalog: Catalog): BuildingGe
   const style = catalog.roofStyles.find((r) => r.id === cfg.roofStyle);
   const build = catalog.roofBuilds.find((b) => b.id === cfg.roofBuild);
   const rounded = build?.rounded ?? false;
+  const tube = catalog.gauges.find((g) => g.id === cfg.gaugeId)?.tubeSize ?? catalog.rules.tubeSize;
+  const legStyle = getSupplier(cfg.supplierId).legStyleFor(cfg.width, cfg.eaveHeight);
 
   const baseProfile = roofProfile(cfg, style);
   const radius = catalog.rules.eaveRoundRadius;
@@ -572,8 +834,18 @@ export function buildGeometry(cfg: BuildingConfig, catalog: Catalog): BuildingGe
   const walls = WALL_IDS.map((w) => buildWall(cfg, catalog, w, wallProfile, present[w]));
   const roofPlanes = buildRoof(cfg, catalog, profile, rounded);
   // The bow is the member the panel is bent around, so it follows the built
-  // roof line, curl included — not the sharp-cornered form.
-  const frame = buildFrame(cfg, catalog, profile, build?.purlins ?? false);
+  // roof line, curl included. A squared roof's bow is still one bent tube, so
+  // its apex gets a tight bend rather than a mitred corner.
+  const bowPath = rounded ? profile : roundProfile(baseProfile, tube * FRAME_SPEC.apexBendTubes, false);
+  const frame = buildFrame(cfg, catalog, {
+    bowPath,
+    baseProfile,
+    purlins: build?.purlins ?? false,
+    rounded,
+    legStyle,
+    tube,
+    walls,
+  });
 
   const built = walls.filter((w) => w.present);
   const metrics: Metrics = {
@@ -588,7 +860,22 @@ export function buildGeometry(cfg: BuildingConfig, catalog: Catalog): BuildingGe
       (s, w) => s + w.holes.reduce((hs, h) => hs + (h.x1 - h.x0) * (h.y1 - h.y0), 0),
       0,
     ),
+    clearWidth: frame.clearWidth,
+    clearLength: frame.clearLength,
+    clearHeight: frame.clearHeight,
+    sideClearHeight: frame.sideClearHeight,
   };
 
-  return { baseProfile, profile, walls, roofPlanes, frame, eaves: eaveHeights(cfg), rounded, metrics };
+  return {
+    baseProfile,
+    profile,
+    walls,
+    roofPlanes,
+    frame: frame.members,
+    eaves: eaveHeights(cfg),
+    rounded,
+    legStyle,
+    tube,
+    metrics,
+  };
 }

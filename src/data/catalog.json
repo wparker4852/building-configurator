@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "branding": {
     "productName": "Building Designer",
     "companyName": "Your Company",
@@ -321,14 +321,16 @@
     {
       "id": "14ga",
       "name": "14 Gauge",
-      "description": "2.25\" square tube, standard framing.",
-      "priceMultiplier": 1
+      "description": "2½\" square galvanized tube, standard framing.",
+      "priceMultiplier": 1,
+      "tubeSize": 0.20833333333333334
     },
     {
       "id": "12ga",
       "name": "12 Gauge",
-      "description": "Heavier wall tube for high wind and snow loads.",
-      "priceMultiplier": 1.16
+      "description": "2¼\" heavier-wall tube for high wind and snow loads.",
+      "priceMultiplier": 1.16,
+      "tubeSize": 0.1875
     }
   ],
   "roofStyles": [
@@ -344,7 +346,8 @@
       "name": "Single Slope",
       "priceMultiplier": 0.94,
       "minPitch": 1,
-      "maxPitch": 5
+      "maxPitch": 5,
+      "maxWidth": 30
     }
   ],
   "sidings": [
@@ -429,112 +432,191 @@
       "name": "Ash Gray",
       "hex": "#b6bab8",
       "upchargePerSqFt": 0,
-      "metallic": 0.3
+      "metallic": 0.3,
+      "finish": "metal"
     },
     {
       "id": "black",
       "name": "Black",
       "hex": "#2a2a2c",
       "upchargePerSqFt": 0,
-      "metallic": 0.3
+      "metallic": 0.3,
+      "finish": "metal"
     },
     {
       "id": "bright-white",
       "name": "Bright White",
       "hex": "#f2f3f3",
       "upchargePerSqFt": 0,
-      "metallic": 0.22
+      "metallic": 0.22,
+      "finish": "metal"
     },
     {
       "id": "brown",
       "name": "Brown",
       "hex": "#4f342a",
       "upchargePerSqFt": 0,
-      "metallic": 0.28
+      "metallic": 0.28,
+      "finish": "metal"
     },
     {
       "id": "burgundy",
       "name": "Burgundy",
       "hex": "#6b2432",
       "upchargePerSqFt": 0,
-      "metallic": 0.28
+      "metallic": 0.28,
+      "finish": "metal"
     },
     {
       "id": "burnished-slate",
       "name": "Burnished Slate",
       "hex": "#4b4238",
       "upchargePerSqFt": 0,
-      "metallic": 0.3
+      "metallic": 0.3,
+      "finish": "metal"
     },
     {
       "id": "charcoal",
       "name": "Charcoal",
       "hex": "#5a5a58",
       "upchargePerSqFt": 0,
-      "metallic": 0.32
+      "metallic": 0.32,
+      "finish": "metal"
     },
     {
       "id": "clay",
       "name": "Clay",
       "hex": "#bdb195",
       "upchargePerSqFt": 0,
-      "metallic": 0.24
+      "metallic": 0.24,
+      "finish": "metal"
     },
     {
       "id": "gallery-blue",
       "name": "Gallery Blue",
       "hex": "#2a5e86",
       "upchargePerSqFt": 0,
-      "metallic": 0.26
+      "metallic": 0.26,
+      "finish": "metal"
     },
     {
       "id": "galvalume",
       "name": "Galvalume",
       "hex": "#cfd2d3",
       "upchargePerSqFt": 0,
-      "metallic": 0.85
+      "metallic": 0.85,
+      "finish": "metal"
     },
     {
       "id": "green",
       "name": "Green",
       "hex": "#2d5240",
       "upchargePerSqFt": 0,
-      "metallic": 0.26
+      "metallic": 0.26,
+      "finish": "metal"
     },
     {
       "id": "light-stone",
       "name": "Light Stone",
       "hex": "#e6d79b",
       "upchargePerSqFt": 0,
-      "metallic": 0.22
+      "metallic": 0.22,
+      "finish": "metal"
     },
     {
       "id": "ocean-blue",
       "name": "Ocean Blue",
       "hex": "#3d7593",
       "upchargePerSqFt": 0,
-      "metallic": 0.26
+      "metallic": 0.26,
+      "finish": "metal"
     },
     {
       "id": "pewter-gray",
       "name": "Pewter Gray",
       "hex": "#a9adad",
       "upchargePerSqFt": 0,
-      "metallic": 0.32
+      "metallic": 0.32,
+      "finish": "metal"
     },
     {
       "id": "red",
       "name": "Red",
       "hex": "#9c2b22",
       "upchargePerSqFt": 0,
-      "metallic": 0.26
+      "metallic": 0.26,
+      "finish": "metal"
     },
     {
       "id": "tan",
       "name": "Tan",
       "hex": "#c2a480",
       "upchargePerSqFt": 0,
-      "metallic": 0.24
+      "metallic": 0.24,
+      "finish": "metal"
+    },
+    {
+      "id": "natural-pine",
+      "name": "Natural Pine",
+      "hex": "#c8a060",
+      "upchargePerSqFt": 0,
+      "metallic": 0.12,
+      "finish": "wood",
+      "variant": "pine"
+    },
+    {
+      "id": "red-oak",
+      "name": "Red Oak",
+      "hex": "#9a6020",
+      "upchargePerSqFt": 0,
+      "metallic": 0.12,
+      "finish": "wood",
+      "variant": "oak"
+    },
+    {
+      "id": "dark-cherry",
+      "name": "Dark Cherry",
+      "hex": "#6a1a1a",
+      "upchargePerSqFt": 0,
+      "metallic": 0.12,
+      "finish": "wood",
+      "variant": "cherry"
+    },
+    {
+      "id": "weathered-wood",
+      "name": "Weathered Wood",
+      "hex": "#8a9090",
+      "upchargePerSqFt": 0,
+      "metallic": 0.12,
+      "finish": "wood",
+      "variant": "weathered"
+    },
+    {
+      "id": "ash-stone",
+      "name": "Ash Stone",
+      "hex": "#9a8c78",
+      "upchargePerSqFt": 0,
+      "metallic": 0.12,
+      "finish": "stone",
+      "variant": "ash"
+    },
+    {
+      "id": "shadow-stone",
+      "name": "Shadow Stone",
+      "hex": "#6a6458",
+      "upchargePerSqFt": 0,
+      "metallic": 0.12,
+      "finish": "stone",
+      "variant": "shadow"
+    },
+    {
+      "id": "smoke-stone",
+      "name": "Smoke Stone",
+      "hex": "#787a7a",
+      "upchargePerSqFt": 0,
+      "metallic": 0.12,
+      "finish": "stone",
+      "variant": "smoke"
     }
   ],
   "openingTypes": [
@@ -594,6 +676,30 @@
       "allowSill": false
     },
     {
+      "id": "roll-10x8",
+      "name": "Roll-Up Door 10' × 8'",
+      "category": "overhead",
+      "width": 10,
+      "height": 8,
+      "defaultSill": 0,
+      "price": 1195,
+      "allowedWalls": "any",
+      "allowSill": false,
+      "sku": "RD-1008"
+    },
+    {
+      "id": "roll-14x14",
+      "name": "Roll-Up Door 14' × 14'",
+      "category": "overhead",
+      "width": 14,
+      "height": 14,
+      "defaultSill": 0,
+      "price": 4450,
+      "allowedWalls": "any",
+      "allowSill": false,
+      "sku": "RD-1414"
+    },
+    {
       "id": "walk-3068",
       "name": "Walk Door 3' × 6'8\"",
       "category": "walk",
@@ -649,6 +755,18 @@
       "allowSill": true
     },
     {
+      "id": "win-3036",
+      "name": "Grid Window 30\" × 36\"",
+      "category": "window",
+      "width": 2.5,
+      "height": 3,
+      "defaultSill": 3.5,
+      "price": 335,
+      "allowedWalls": "any",
+      "allowSill": true,
+      "sku": "WIN-3036"
+    },
+    {
       "id": "framed-opening",
       "name": "Framed Opening",
       "category": "framed",
@@ -672,35 +790,48 @@
       "name": "No Floor (bare ground)",
       "pricePerSqFt": 0,
       "thickness": 0,
-      "hex": "#7a7159"
+      "hex": "#7a7159",
+      "texture": "dirt"
     },
     {
       "id": "floor-gravel",
       "name": "Compacted Gravel Pad",
       "pricePerSqFt": 2.1,
       "thickness": 0.35,
-      "hex": "#9a9285"
+      "hex": "#9a9285",
+      "texture": "gravel"
+    },
+    {
+      "id": "floor-asphalt",
+      "name": "Asphalt Pad",
+      "pricePerSqFt": 4.25,
+      "thickness": 0.25,
+      "hex": "#3a3a3a",
+      "texture": "asphalt"
     },
     {
       "id": "floor-concrete-4",
       "name": "4\" Concrete Slab",
       "pricePerSqFt": 6.5,
       "thickness": 0.42,
-      "hex": "#b8b6b0"
+      "hex": "#b8b6b0",
+      "texture": "concrete"
     },
     {
       "id": "floor-concrete-6",
       "name": "6\" Reinforced Slab",
       "pricePerSqFt": 8.75,
       "thickness": 0.58,
-      "hex": "#b0aea8"
+      "hex": "#b0aea8",
+      "texture": "concrete"
     },
     {
       "id": "floor-wood",
       "name": "Treated Wood Floor",
       "pricePerSqFt": 7.4,
       "thickness": 0.6,
-      "hex": "#96794f"
+      "hex": "#96794f",
+      "texture": "wood"
     }
   ],
   "addOns": [
@@ -769,12 +900,32 @@
       "price": 12
     },
     {
+      "id": "j-trim",
+      "name": "J-Trim Package",
+      "description": "Full perimeter J-channel trim set in matching color.",
+      "category": "Exterior",
+      "basis": "each",
+      "price": 320,
+      "sku": "WB-TRIM-J"
+    },
+    {
       "id": "ridge-vent",
       "name": "Ridge Vent",
       "description": "Continuous vented ridge cap.",
       "category": "Exterior",
       "basis": "length",
       "price": 14
+    },
+    {
+      "id": "turbo-vent",
+      "name": "Turbo Vent 12\"",
+      "description": "12\" galvanized turbine ventilator for the roof.",
+      "category": "Exterior",
+      "basis": "each",
+      "price": 120,
+      "countable": true,
+      "maxQty": 8,
+      "sku": "WB-TV-12"
     },
     {
       "id": "cupola",
@@ -874,6 +1025,14 @@
         "Doors & Windows": 45,
         "Options": 50
       }
+    },
+    "taxByState": {
+      "NC": 0.0475,
+      "SC": 0.06,
+      "GA": 0.04,
+      "VA": 0.053,
+      "TN": 0.07,
+      "FL": 0.06
     }
   }
 }

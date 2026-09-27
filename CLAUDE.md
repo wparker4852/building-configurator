@@ -70,19 +70,56 @@ a supplier.
 
 Working and verified against the PDFs by hand: structure, walls and upgrades for all three
 suppliers; geometry for all three roof builds; frame; openings with frame-outs; embed; quote doc.
+Doors and windows quote from the supplier component table (nearest stocked roll-up by area).
 
-**Still on placeholder prices** (my invented numbers, not from any book):
-foundation, anchors, add-ons, and **doors/windows**. The books carry real figures for roll-up
-doors, walk-in doors, windows, frameouts and insulation — they are already transcribed in the
-JSON, just not wired up.
+**Still on placeholder prices** (my invented numbers, not from any book): foundation (incl. the
+new asphalt pad), anchors, add-ons (incl. J-trim, turbo vent), and the catalog fallback prices
+for doors/windows. Premium wood/stone finishes are reported as unpriced, never estimated.
+
+### Merged from the Walker Buildings configurator (partner's build)
+
+The partner's single-file prototype is kept at `reference/walker-configurator-v4.html`. What was
+taken from it, and where it lives now:
+
+- **Frame engineering** (`FRAME_SPEC`, `buildFrame` in `core/geometry.ts`): 14 ga = 2½" tube,
+  12 ga = 2¼" (`gauges[].tubeSize`); bent apex on squared bows; peak brace 2/4/6' under 25'
+  wide, bottom chord + two struts from 25' (16/18/20' at 25–30', same rule extrapolated wider);
+  45° knee braces 3'/4'; hat channel 1' from ridge then every 4'; eave rails on squared eaves;
+  endwall studs ≤5' apart; ladder legs = 7" gap + rungs 20" OC. **Which** leg style is the
+  book's call (`Supplier.legStyleFor`), not the partner's height rule — his was 15'/16'.
+  Improvements over his: legs, studs and base rails are cut around openings; the chord is set
+  so its ends land on the bow (his poked through the roof at low pitch); knee braces stay on an
+  end bent when that end is open.
+- **AG panel profile** as a normal map (`walkProfile`/`ribNormalMap` in `viewer/materials.ts`),
+  galvalume undersides, ridge cap bent to pitch, base trim, wood/stone prints, slab textures.
+- **Inside (walk-in) view, orientation labels, architectural dimension lines, studio backdrop,
+  head tracking** (`viewer/Scene.tsx`, `viewer/headTracking.ts` — MediaPipe loads from jsdelivr
+  only when switched on).
+- **2D floor plan** (`ui/FloorPlan.tsx`, `core/floorPlan.ts`): vehicles/equipment, fit judged
+  against clear inside dims and the clearance under the truss, saved in the share link as
+  `planItems`. The same items stand in 3D as generic low-poly shapes (`viewer/Equipment.tsx`),
+  red when they do not fit; the walk-in camera stands at the first spot not occupied by one.
+- **Leg upgrade is shaded darker** (`TubeMember.upgrade`, per-instance colour) and a double
+  leg is drawn with a ½" reveal — touching tubes merged into one and the upgrade was invisible.
+- **Clearances** in `Metrics`: `clearWidth/Length/Height`, `sideClearHeight`.
+- **Colors** (premium wood/stone), roll-up 10×8 and 14×14, 30×36 window, tax by delivery state,
+  single slope capped at 30' wide, and an **Add a part** form in admin (his "Dev Dashboard").
+
+Not taken: his pricing (a `sqft × 9.5` placeholder), "Seneca style", the 12" boxed-eave and
+professional-install toggles (no book prices them), and his lean-to/wing tabs (UI stubs only —
+see lean-tos below).
+
+Fixed along the way: `wallsPresent()` read the legacy `enclosure` field, so walls drawn and
+walls charged could disagree (e.g. sides open + one end closed drew both sides). It now reads
+`sidesClosed`/`endsClosed`, same as the book.
 
 ### Next, roughly in order
 
-1. **Wire openings to supplier book prices.** The books disagree on door sizes between suppliers,
-   so this needs a per-supplier opening list rather than one shared catalog. Note the books price
-   a frameout *without* a door *higher* than one with ($250 vs $200).
-2. **Draw the frame changes that are already being priced** — Double Leg + Double Baserail from
-   14', ladder legs above that. Currently priced but not rendered.
+1. **Frameout pricing.** Doors/windows are wired; frameouts are not yet charged per opening.
+   The books price a frameout *without* a door *higher* than one with ($250 vs $200), and door
+   sizes differ between suppliers.
+2. **Frame-outs in "Frame only".** They are drawn with the wall, so the frame-only view shows
+   the gaps in studs and rails but not the jambs and headers.
 3. **Lean-tos.** The biggest missing geometry primitive. Unlocks the whole Barns category, which
    is centre-building-plus-lean-tos: Standard (separate roofs), Raised Center (centre lifted
    clear), Straight Roof (one continuous roof). Garage-with-lean-to and free-standing lean-to
@@ -124,4 +161,9 @@ more side-to-side connection widths.
 - Textures are drawn on a canvas at runtime — no image assets, any hex color works.
 - The canvas uses `preserveDrawingBuffer` so the quote document can embed the actual render.
 - Admin catalog edits persist to `localStorage` and silently override the shipped catalog. If
-  pricing looks wrong, hit **Reset** in the admin header.
+  pricing looks wrong, hit **Reset** in the admin header. Overrides from an older `version` are
+  ignored, so bump `catalog.json`'s `version` whenever its shape changes (now 2).
+- Canvas-painted textures parse hex by hand — `THREE.Color` converts to linear and paints
+  everything too dark.
+- Orientation labels draw over everything (`depthTest: false`) and fade by facing; drawn
+  normally they hide under the eave from above and under the dimension lines from the front.

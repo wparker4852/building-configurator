@@ -9,6 +9,7 @@ import { baseCatalog, resetCatalog, saveCatalog } from '../core/catalog';
 import { deleteLead, leadsToCsv, listLeads, type StoredLead } from '../core/leads';
 import { money } from '../core/pricing';
 import ComponentPricing from './ComponentPricing';
+import AddPartForm from './AddPartForm';
 
 function download(name: string, content: string, type: string) {
   const url = URL.createObjectURL(new Blob([content], { type }));
@@ -132,6 +133,10 @@ export default function AdminApp({
 
           <ComponentPricing defaultMarkupPct={catalog.rules.markup.defaultPct} />
 
+          <Sheet title="Add a part">
+            <AddPartForm catalog={catalog} onAdd={edit} />
+          </Sheet>
+
           <Sheet title="Branding">
             <table className="grid">
               <tbody>
@@ -222,7 +227,32 @@ export default function AdminApp({
           </Sheet>
 
           <Sheet title="Doors & windows">
-            {priceList(catalog.openingTypes, (o) => o.price, (d, i, v) => { d.openingTypes[i].price = v; }, '$ each')}
+            <table className="grid">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>SKU</th>
+                  <th>Walls</th>
+                  <th className="num">$ each</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {catalog.openingTypes.map((o, i) => (
+                  <tr key={o.id}>
+                    <td>{o.name}</td>
+                    <td style={{ color: 'var(--text-2)' }}>{o.sku ?? '—'}</td>
+                    <td style={{ color: 'var(--text-2)' }}>{o.allowedWalls === 'any' ? 'Any' : o.allowedWalls.join(', ')}</td>
+                    <td className="num"><Num value={o.price} onChange={(v) => edit((d) => { d.openingTypes[i].price = v; })} /></td>
+                    <td className="num">
+                      <button className="btn sm ghost" onClick={() => edit((d) => { d.openingTypes.splice(i, 1); })}>
+                        Remove
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </Sheet>
 
           <Sheet title="Foundations">
@@ -236,6 +266,7 @@ export default function AdminApp({
                   <th>Add-on</th>
                   <th>Basis</th>
                   <th className="num">Price</th>
+                  <th />
                 </tr>
               </thead>
               <tbody>
@@ -245,8 +276,16 @@ export default function AdminApp({
                       <strong>{a.name}</strong>
                       <div style={{ color: 'var(--text-3)', fontSize: 11 }}>{a.category}</div>
                     </td>
-                    <td style={{ color: 'var(--text-2)' }}>{a.basis}</td>
+                    <td style={{ color: 'var(--text-2)' }}>
+                      {a.basis}
+                      {a.sku ? ` · ${a.sku}` : ''}
+                    </td>
                     <td className="num"><Num value={a.price} onChange={(v) => edit((d) => { d.addOns[i].price = v; })} /></td>
+                    <td className="num">
+                      <button className="btn sm ghost" onClick={() => edit((d) => { d.addOns.splice(i, 1); })}>
+                        Remove
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>

@@ -62,6 +62,12 @@ export function freightFor(catalog: Catalog, miles: number): number {
   return round2(f.baseCharge + Math.max(0, miles - f.freeRadiusMiles) * f.perMile);
 }
 
+/** Sales tax rate: the delivery state's when one is chosen, else the default. */
+export function taxRateFor(catalog: Catalog, cfg: BuildingConfig): number {
+  const byState = catalog.rules.taxByState ?? {};
+  return cfg.state && byState[cfg.state] != null ? byState[cfg.state] : catalog.rules.taxRate;
+}
+
 /** Markup percentage for a line category. */
 function markupFor(catalog: Catalog, category: string): number {
   return catalog.rules.markup.byCategory[category] ?? catalog.rules.markup.defaultPct;
@@ -202,13 +208,29 @@ export function priceBuilding(cfg: BuildingConfig, catalog: Catalog, geo: Buildi
     );
   }
 
+  // ── Premium printed finishes ───────────────────────────────────────────────
+  // Wood- and stone-look panels cost extra, but no book prints the upcharge
+  // yet. Say so rather than invent one.
+  const premium = new Set<string>();
+  const finishOf = (id: string | null) => catalog.colors.find((c) => c.id === id);
+  const walled = geo.walls.some((w) => w.present);
+  for (const [id, surface] of [
+    [cfg.roofColorId, 'roof'],
+    [walled ? cfg.sidingColorId : null, 'walls'],
+    [walled ? cfg.wainscotColorId : null, 'wainscot'],
+  ] as const) {
+    const c = finishOf(id);
+    if (c && c.finish && c.finish !== 'metal') premium.add(`${c.name} (${c.finish}-look) on the ${surface}`);
+  }
+  for (const p of premium) unpriced.push(`premium finish ${p}`);
+
   // ── Roll-up ────────────────────────────────────────────────────────────────
   const subtotal = round2(lines.reduce((s, l) => s + l.total, 0));
   const discount = round2(subtotal * ((cfg.discountPct ?? 0) / 100));
   const freight = freightFor(catalog, catalog.rules.freight.defaultMiles);
   const freightCost = costFor(catalog, 'Freight', freight);
   const taxable = round2(subtotal - discount + freight);
-  const tax = round2(taxable * catalog.rules.taxRate);
+  const tax = round2(taxable * taxRateFor(catalog, cfg));
   const total = round2(taxable + tax);
 
   const cost = round2(lines.reduce((s, l) => s + l.cost, 0) + freightCost);

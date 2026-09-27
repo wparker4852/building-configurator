@@ -2,6 +2,7 @@
 
 import { useId, useState, type ReactNode } from 'react';
 import type { ColorOption } from '../core/types';
+import { swatchDataUrl } from '../viewer/materials';
 
 export function Section({
   title,
@@ -133,19 +134,26 @@ export function Swatches({
         <span className="field-value">{current?.name}</span>
       </div>
       <div className="swatches">
-        {colors.map((c) => (
-          <button
-            key={c.id}
-            className="swatch"
-            style={{ background: c.hex }}
-            aria-pressed={value === c.id}
-            aria-label={c.name}
-            title={c.upchargePerSqFt > 0 ? `${c.name} (premium)` : c.name}
-            onClick={() => onChange(c.id)}
-          >
-            {c.upchargePerSqFt > 0 && <span className="up">+</span>}
-          </button>
-        ))}
+        {colors.map((c) => {
+          // Wood- and stone-look prints are premium even before a book prices them.
+          const printed = c.finish === 'wood' || c.finish === 'stone';
+          const premium = printed || c.upchargePerSqFt > 0;
+          return (
+            <button
+              key={c.id}
+              className={`swatch${printed ? ' printed' : ''}`}
+              style={{
+                background: printed ? `url(${swatchDataUrl(c.hex, c.finish, c.variant)}) center / cover` : c.hex,
+              }}
+              aria-pressed={value === c.id}
+              aria-label={c.name}
+              title={premium ? `${c.name} (premium${printed ? ` ${c.finish}-look` : ''})` : c.name}
+              onClick={() => onChange(c.id)}
+            >
+              {premium && <span className="up">$</span>}
+            </button>
+          );
+        })}
       </div>
     </div>
   );

@@ -3,9 +3,11 @@
 // Runs on every change, on model switches, and on anything decoded from a URL,
 // so the rest of the app can assume the config it holds is buildable.
 
-import type { BuildingConfig, Catalog, Opening, WallId } from './types';
+import type { BuildingConfig, Catalog, Opening, PlanItem, WallId } from './types';
+import { WALL_IDS } from './types';
+import { FLOOR_PLAN_ITEMS } from './floorPlan';
 import {
-  profileHeightAt, roofProfile, wallLength, wallTopEdge, headroomAt, openingCenterX, openingSize,
+  profileHeightAt, roofProfile, wallLength, wallTopEdge, headroomAt, openingCenterX, openingSize, wallsPresent,
 } from './geometry';
 import { getSupplier } from './suppliers';
 
@@ -32,11 +34,18 @@ export function normalizeConfig(input: BuildingConfig, catalog: Catalog): Buildi
   const nearest = (want: number, from: number[], fallback: number) =>
     from.length ? from.reduce((a, b) => (Math.abs(b - want) < Math.abs(a - want) ? b : a)) : fallback;
 
-  if (!model.allowedRoofStyles.includes(cfg.roofStyle)) cfg.roofStyle = model.allowedRoofStyles[0];
-
   // Width first: for a manufacturer that prints several books, width is what
   // decides which one applies, so everything below depends on it.
   cfg.width = nearest(Number(cfg.width) || size.minWidth, supplier.widths, supplier.widths[0]);
+
+  // A silhouette may stop at a width (single slope is not offered over 30').
+  const styleFits = (id: string) => {
+    const s = catalog.roofStyles.find((r) => r.id === id);
+    return !!s && (s.maxWidth == null || cfg.width <= s.maxWidth);
+  };
+  if (!model.allowedRoofStyles.includes(cfg.roofStyle) || !styleFits(cfg.roofStyle)) {
+    cfg.roofStyle = model.allowedRoofStyles.find(styleFits) ?? model.allowedRoofStyles[0];
+  }
 
   const roofBuilds = supplier.roofBuildsFor(cfg.width);
   if (!roofBuilds.includes(cfg.roofBuild)) cfg.roofBuild = roofBuilds[0];
@@ -89,7 +98,8 @@ export function normalizeConfig(input: BuildingConfig, catalog: Catalog): Buildi
   cfg.gaugeId = catalog.gauges.some((g) => g.id === cfg.gaugeId) ? cfg.gaugeId : catalog.gauges[0].id;
   cfg.sidingOrientation = cfg.sidingOrientation === 'vertical' ? 'vertical' : 'horizontal';
 
-  if (!model.allowedEnclosures.includes(cfg.enclosure)) cfg.enclosure = model.allowedEnclosures[0];
+  // Enclosure is derived from sides and ends above. A model's allowed list must
+  // not override it, or the walls drawn and the walls charged would disagree.
 
   const pick = <T extends { id: string }>(list: T[], id: string) =>
     list.some((x) => x.id === id) ? id : list[0].id;
@@ -109,6 +119,10 @@ export function normalizeConfig(input: BuildingConfig, catalog: Catalog): Buildi
   cfg.gableOverhang = clamp(Number(cfg.gableOverhang) || 0, 0, 4);
   cfg.eaveOverhang = clamp(Number(cfg.eaveOverhang) || 0, 0, 4);
   cfg.discountPct = clamp(Number(cfg.discountPct) || 0, 0, 40);
+
+  const taxStates = catalog.rules.taxByState ?? {};
+  if (!cfg.state || !(cfg.state in taxStates)) delete cfg.state;
+  cfg.planItems = normalizePlanItems(cfg.planItems);
 
   const knownOptions = new Set(catalog.addOns.map((a) => a.id));
   cfg.optionIds = (cfg.optionIds ?? []).filter((id) => knownOptions.has(id));
@@ -205,15 +219,14 @@ export function findIssues(cfg: BuildingConfig, catalog: Catalog): Issue[] {
   }
 
   // Doors on a wall that is not being built.
-  if (cfg.enclosure !== 'enclosed') {
-    const openWalls: WallId[] = cfg.enclosure === 'open' ? ['front', 'back', 'left', 'right'] : ['front'];
-    const stranded = cfg.openings.filter((o) => openWalls.includes(o.wall)).length;
-    if (stranded > 0) {
-      issues.push({
-        level: 'warning',
-        message: `${stranded} door/window ${stranded === 1 ? 'is' : 'are'} on an open side and will not be built or charged.`,
-      });
-    }
+  const present = wallsPresent(cfg);
+  const openWalls = WALL_IDS.filter((w) => !present[w]);
+  const stranded = cfg.openings.filter((o) => openWalls.includes(o.wall)).length;
+  if (stranded > 0) {
+    issues.push({
+      level: 'warning',
+      message: `${stranded} door/window ${stranded === 1 ? 'is' : 'are'} on an open side and will not be built or charged.`,
+    });
   }
 
   const peak = Math.max(...profile.map((p) => p.y));
@@ -229,6 +242,28 @@ export function findIssues(cfg: BuildingConfig, catalog: Catalog): Issue[] {
   }
 
   return issues;
+}
+
+/** Keep floor-plan items finite, sized and on quarter turns; drop anything malformed. */
+export function normalizePlanItems(items: PlanItem[] | undefined): PlanItem[] {
+  if (!Array.isArray(items)) return [];
+  const num = (v: unknown, fallback: number) => (Number.isFinite(Number(v)) ? Number(v) : fallback);
+  return items
+    .filter((it) => it && typeof it === 'object')
+    .slice(0, 60)
+    .map((it, i) => ({
+      id: String(it.id || `p${i}`),
+      kind: String(it.kind || 'custom'),
+      label: String(it.label || 'Item').slice(0, 24),
+      w: clamp(num(it.w, 2), 0.5, 200),
+      h: clamp(num(it.h, 2), 0.5, 200),
+      // Items saved before heights existed take their preset's.
+      tall: clamp(num(it.tall, FLOOR_PLAN_ITEMS.find((p) => p.kind === it.kind)?.tall ?? 4), 0.25, 40),
+      x: clamp(num(it.x, 0), -500, 500),
+      y: clamp(num(it.y, 0), -500, 500),
+      rot: (((Math.round(num(it.rot, 0) / 90) * 90) % 360) + 360) % 360,
+      color: /^#[0-9a-f]{6}$/i.test(String(it.color)) ? String(it.color) : '#4a7fc1',
+    }));
 }
 
 /** Height of the roof line at a world X, re-exported for UI hints. */

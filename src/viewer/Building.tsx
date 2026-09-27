@@ -8,7 +8,31 @@ import { useLayoutEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import type { BuildingConfig, Catalog, ColorOption, MaterialOption } from '../core/types';
 import type { BuildingGeometry, HoleRect, WallSpec } from '../core/geometry';
-import { roughnessFor, tiled } from './materials';
+import { finishTexture, floorTexture, galvalumeTexture, roughnessFor, tiled, tiledNormal } from './materials';
+
+/**
+ * Colour and normal maps for a panelled surface. Ribbed steel gets the AG rib
+ * normal map; a wood- or stone-look colour prints over the same ribs.
+ */
+function usePanelMaps(
+  texture: MaterialOption['texture'],
+  color: ColorOption,
+  repeatX: number,
+  repeatY: number,
+  horizontal: boolean,
+) {
+  return useMemo(() => {
+    const printed = color.finish === 'wood' || color.finish === 'stone';
+    const map = printed
+      ? finishTexture(color.finish as 'wood' | 'stone', color.hex, color.variant, repeatX, repeatY)
+      : tiled(texture, color.hex, repeatX, repeatY, horizontal);
+    const ribbed = texture === 'ribbed';
+    const normalMap = ribbed ? tiledNormal(horizontal, repeatX, repeatY) : null;
+    return { map, normalMap };
+  }, [texture, color.hex, color.finish, color.variant, repeatX, repeatY, horizontal]);
+}
+
+const NORMAL_SCALE = new THREE.Vector2(1.4, 1.4);
 
 interface Skin {
   siding: MaterialOption;
@@ -233,17 +257,55 @@ function Wainscot({ wall, catalog, color }: { wall: WallSpec; catalog: Catalog; 
     return new THREE.ExtrudeGeometry(shape, { depth: 0.04, bevelEnabled: false, curveSegments: 1 });
   }, [half, height, JSON.stringify(wall.holes.map((h) => [h.x0, h.x1, h.y0, h.y1]))]);
 
-  const map = useMemo(() => tiled('ribbed', color.hex, 1 / 3, 1 / 3, true), [color.hex]);
+  const { map, normalMap } = usePanelMaps('ribbed', color, 1 / 3, 1 / 3, true);
 
   return (
     <mesh geometry={geometry} position={[0, 0, t]} castShadow receiveShadow>
       <meshStandardMaterial
         map={map}
+        normalMap={normalMap}
+        normalScale={NORMAL_SCALE}
         color="#ffffff"
         roughness={roughnessFor(color.metallic ?? 0.3)}
         metalness={(color.metallic ?? 0.3) * 0.5}
       />
     </mesh>
+  );
+}
+
+/**
+ * Base angle: the L-trim that closes the bottom of the siding at grade. Cut
+ * out wherever a door comes down to the floor.
+ */
+function BaseTrim({ wall, thickness, trim }: { wall: WallSpec; thickness: number; trim: ColorOption }) {
+  const half = wall.length / 2;
+  const leg = 0.18;
+  const runs: [number, number][] = [];
+  let cursor = -half;
+  const doors = wall.holes.filter((h) => h.y0 < 0.05).sort((a, b) => a.x0 - b.x0);
+  for (const d of doors) {
+    if (d.x0 > cursor) runs.push([cursor, d.x0]);
+    cursor = Math.max(cursor, d.x1);
+  }
+  if (half > cursor) runs.push([cursor, half]);
+  const rough = roughnessFor(trim.metallic ?? 0.25);
+  return (
+    <group>
+      {runs
+        .filter(([a, b]) => b - a > 0.2)
+        .map(([a, b]) => (
+          <group key={a}>
+            <mesh position={[(a + b) / 2, leg / 2, thickness + 0.012]} castShadow>
+              <boxGeometry args={[b - a, leg, 0.024]} />
+              <meshStandardMaterial color={trim.hex} roughness={rough} metalness={(trim.metallic ?? 0.25) * 0.6} />
+            </mesh>
+            <mesh position={[(a + b) / 2, 0.012, thickness + leg / 2]} receiveShadow>
+              <boxGeometry args={[b - a, 0.024, leg]} />
+              <meshStandardMaterial color={trim.hex} roughness={rough} metalness={(trim.metallic ?? 0.25) * 0.6} />
+            </mesh>
+          </group>
+        ))}
+    </group>
   );
 }
 
@@ -275,18 +337,54 @@ function Wall({
 
   // Extrude UVs are in feet, so a repeat of 1/tile gives one panel per `tile` feet.
   const tile = skin.siding.tileHeight ?? 3;
-  const map = useMemo(
-    () => tiled(skin.siding.texture, skin.sidingColor.hex, 1 / tile, 1 / tile, skin.sidingHorizontal),
-    [skin.siding.texture, skin.sidingColor.hex, tile, skin.sidingHorizontal],
-  );
+  const { map, normalMap } = usePanelMaps(skin.siding.texture, skin.sidingColor, 1 / tile, 1 / tile, skin.sidingHorizontal);
+
+  // Steel siding shows bare galvalume on the inside. Drawn as a skin just
+  // inboard of the wall, facing in, so it only renders from inside.
+  const steel = skin.siding.texture === 'ribbed' || skin.siding.texture === 'board-batten';
+  const inner = useDisposableGeometry(() => {
+    const shape = new THREE.Shape(wall.outline.map((p) => new THREE.Vector2(p.x, p.y)));
+    for (const hole of wall.holes) {
+      const path = new THREE.Path();
+      path.moveTo(hole.x0, hole.y0);
+      path.lineTo(hole.x1, hole.y0);
+      path.lineTo(hole.x1, hole.y1);
+      path.lineTo(hole.x0, hole.y1);
+      path.closePath();
+      shape.holes.push(path);
+    }
+    return new THREE.ShapeGeometry(shape, 1);
+  }, [JSON.stringify(wall.outline), JSON.stringify(wall.holes.map((h) => [h.x0, h.x1, h.y0, h.y1]))]);
+  const galv = useMemo(() => {
+    const tex = galvalumeTexture().clone();
+    tex.needsUpdate = true;
+    tex.repeat.set(1 / 3, 1 / 3);
+    if (skin.sidingHorizontal) tex.rotation = Math.PI / 2;
+    return tex;
+  }, [skin.sidingHorizontal]);
 
   return (
     <group position={wall.position} rotation={[0, wall.rotationY, 0]}>
+      {steel && (
+        <mesh geometry={inner} position={[0, 0, -0.006]}>
+          <meshStandardMaterial
+            map={galv}
+            side={THREE.BackSide}
+            metalness={0.5}
+            roughness={0.42}
+            polygonOffset
+            polygonOffsetFactor={-1}
+          />
+        </mesh>
+      )}
+      <BaseTrim wall={wall} thickness={t} trim={skin.trimColor} />
       <mesh geometry={geometry} castShadow receiveShadow>
         {/* Group 0 is the front/back faces, group 1 the extruded edges. */}
         <meshStandardMaterial
           attach="material-0"
           map={map}
+          normalMap={normalMap}
+          normalScale={NORMAL_SCALE}
           color="#ffffff"
           roughness={roughnessFor(skin.sidingColor.metallic ?? 0.3)}
           metalness={(skin.sidingColor.metallic ?? 0.3) * 0.5}
@@ -323,6 +421,10 @@ function Roof({ cfg, catalog, geo, skin }: { cfg: BuildingConfig; catalog: Catal
   // A rounded roof curves over the ridge; only squared builds get a cap.
   const hasRidge = geo.baseProfile.length >= 3 && !geo.rounded;
   const runLength = cfg.length + 2 * cfg.gableOverhang;
+  // Slope of the two runs that meet at the ridge.
+  const ridge = geo.baseProfile[Math.floor(geo.baseProfile.length / 2)];
+  const before = geo.baseProfile[Math.floor(geo.baseProfile.length / 2) - 1] ?? ridge;
+  const ridgeAngle = Math.atan2(ridge.y - before.y, ridge.x - before.x || 1);
 
   return (
     <group>
@@ -330,15 +432,23 @@ function Roof({ cfg, catalog, geo, skin }: { cfg: BuildingConfig; catalog: Catal
         <RoofPlaneMesh key={plane.key} plane={plane} thickness={t} tile={tile} skin={skin} />
       ))}
 
+      {/* Ridge cap: 29 ga sheet bent to the roof's own pitch, lapping 6"
+          down each slope and lying flat on the panels. */}
       {hasRidge && (
-        <mesh position={[0, peak + t * 0.9, 0]} castShadow>
-          <boxGeometry args={[1.0, 0.16, runLength]} />
-          <meshStandardMaterial
-            color={skin.trimColor.hex}
-            roughness={trimRough}
-            metalness={(skin.trimColor.metallic ?? 0.25) * 0.6}
-          />
-        </mesh>
+        <group position={[0, peak + t / Math.cos(ridgeAngle) + 0.012, 0]}>
+          {[-1, 1].map((side) => (
+            <group key={side} rotation={[0, 0, -side * ridgeAngle]}>
+              <mesh position={[side * 0.25, 0, 0]} castShadow>
+                <boxGeometry args={[0.5, 0.024, runLength + 0.05]} />
+                <meshStandardMaterial
+                  color={skin.trimColor.hex}
+                  roughness={trimRough}
+                  metalness={(skin.trimColor.metallic ?? 0.25) * 0.6}
+                />
+              </mesh>
+            </group>
+          ))}
+        </group>
       )}
 
       {/* Fascia along the two outer roof edges. A rounded roof has no flat eave to trim. */}
@@ -377,24 +487,50 @@ function RoofPlaneMesh({
   // On the slab's top face, u runs up the slope and v runs along the ridge.
   // Ribs drawn across v therefore run ridge-to-eave (a vertical roof); ribs
   // drawn across u run lengthwise (a regular or boxed-eave roof).
-  const map = useMemo(() => {
-    if (skin.roofing.texture === 'shingle') {
-      return tiled('shingle', skin.roofColor.hex, plane.slopeLength / tile, plane.runLength / tile);
-    }
-    return skin.roofHorizontal
-      ? tiled('ribbed', skin.roofColor.hex, plane.slopeLength / tile, 1, false)
-      : tiled('ribbed', skin.roofColor.hex, 1, plane.runLength / tile, true);
-  }, [skin.roofing.texture, skin.roofColor.hex, skin.roofHorizontal, plane.slopeLength, plane.runLength, tile]);
+  const shingle = skin.roofing.texture === 'shingle';
+  // Box face UVs run 0..1, so the repeat is simply panels per face.
+  const repeat: [number, number] = shingle
+    ? [plane.slopeLength / tile, plane.runLength / tile]
+    : skin.roofHorizontal
+      ? [plane.slopeLength / tile, 1]
+      : [1, plane.runLength / tile];
+  const ribsAcrossV = !shingle && !skin.roofHorizontal;
+  const { map, normalMap } = usePanelMaps(
+    shingle ? 'shingle' : 'ribbed',
+    skin.roofColor,
+    repeat[0],
+    repeat[1],
+    ribsAcrossV,
+  );
+  const under = useMemo(() => {
+    const tex = galvalumeTexture().clone();
+    tex.needsUpdate = true;
+    tex.repeat.set(repeat[0], repeat[1]);
+    if (!ribsAcrossV) tex.rotation = Math.PI / 2;
+    return tex;
+  }, [repeat[0], repeat[1], ribsAcrossV]);
 
   return (
     <mesh position={plane.position} rotation={[0, 0, plane.rotationZ]} castShadow receiveShadow>
       <boxGeometry args={[plane.slopeLength, thickness, plane.runLength]} />
-      <meshStandardMaterial
-        map={map}
-        color="#ffffff"
-        roughness={roughnessFor(skin.roofColor.metallic ?? 0.3)}
-        metalness={(skin.roofColor.metallic ?? 0.3) * 0.5}
-      />
+      {/* Box faces: +x, -x, +y (weather side), -y (underside), +z, -z. */}
+      {[0, 1, 2, 4, 5].map((i) => (
+        <meshStandardMaterial
+          key={i}
+          attach={`material-${i}`}
+          map={map}
+          normalMap={i === 2 ? normalMap : null}
+          normalScale={NORMAL_SCALE}
+          color="#ffffff"
+          roughness={roughnessFor(skin.roofColor.metallic ?? 0.3)}
+          metalness={(skin.roofColor.metallic ?? 0.3) * 0.5}
+        />
+      ))}
+      {shingle ? (
+        <meshStandardMaterial attach="material-3" color="#9a8f7c" roughness={0.9} />
+      ) : (
+        <meshStandardMaterial attach="material-3" map={under} metalness={0.5} roughness={0.42} />
+      )}
     </mesh>
   );
 }
@@ -405,6 +541,9 @@ function RoofPlaneMesh({
  * The tube-steel frame, drawn as a single instanced mesh. A 200' building at
  * 4' on center is over 400 tubes, so instancing is what keeps this cheap.
  */
+const STEEL = '#c3c8cc';
+const UPGRADE_STEEL = '#8e979f';
+
 function Frame({ members }: { members: BuildingGeometry['frame'] }) {
   const ref = useRef<THREE.InstancedMesh>(null);
 
@@ -416,6 +555,10 @@ function Frame({ members }: { members: BuildingGeometry['frame'] }) {
     const euler = new THREE.Euler();
     const pos = new THREE.Vector3();
     const scl = new THREE.Vector3();
+    // The leg upgrade (second leg, its base rail, ladder rungs) is a shade
+    // darker, so the steel being charged for reads against the standard frame.
+    const steel = new THREE.Color(STEEL);
+    const upgrade = new THREE.Color(UPGRADE_STEEL);
     members.forEach((m, i) => {
       euler.set(m.rotation[0], m.rotation[1], m.rotation[2]);
       quat.setFromEuler(euler);
@@ -423,8 +566,10 @@ function Frame({ members }: { members: BuildingGeometry['frame'] }) {
       scl.set(m.size[0], m.size[1], m.size[2]);
       matrix.compose(pos, quat, scl);
       mesh.setMatrixAt(i, matrix);
+      mesh.setColorAt(i, m.upgrade ? upgrade : steel);
     });
     mesh.instanceMatrix.needsUpdate = true;
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     mesh.computeBoundingSphere();
   }, [members]);
 
@@ -434,7 +579,8 @@ function Frame({ members }: { members: BuildingGeometry['frame'] }) {
       <boxGeometry args={[1, 1, 1]} />
       {/* Low metalness on purpose: there is no environment map in the scene,
           and a high-metalness surface with nothing to reflect renders black. */}
-      <meshStandardMaterial color="#c3c8cc" metalness={0.18} roughness={0.52} />
+      {/* White so the per-instance colour is the colour. */}
+      <meshStandardMaterial color="#ffffff" metalness={0.18} roughness={0.52} />
     </instancedMesh>
   );
 }
@@ -470,12 +616,25 @@ function CornerTrim({ cfg, geo, skin }: { cfg: BuildingConfig; geo: BuildingGeom
 
 function Floor({ cfg, catalog }: { cfg: BuildingConfig; catalog: Catalog }) {
   const floor = catalog.floors.find((f) => f.id === cfg.floorId);
-  if (!floor || floor.thickness <= 0) return null;
   const pad = 0.6;
+  const w = cfg.width + pad;
+  const l = cfg.length + pad;
+  const kind = floor?.texture;
+  const map = useMemo(() => {
+    if (!floor || !kind) return null;
+    // Poured surfaces tile at 8', loose ones at 4'.
+    const tile = kind === 'gravel' || kind === 'dirt' ? 4 : 8;
+    const tex = floorTexture(kind, floor.hex).clone();
+    tex.needsUpdate = true;
+    tex.repeat.set(w / tile, l / tile);
+    return tex;
+  }, [kind, floor?.hex, w, l]);
+  if (!floor || floor.thickness <= 0) return null;
+  const rough = kind === 'concrete' ? 0.82 : kind === 'wood' ? 0.75 : 0.97;
   return (
     <mesh position={[0, -floor.thickness / 2 + 0.01, 0]} receiveShadow>
-      <boxGeometry args={[cfg.width + pad, floor.thickness, cfg.length + pad]} />
-      <meshStandardMaterial color={floor.hex} roughness={0.92} metalness={0.02} />
+      <boxGeometry args={[w, floor.thickness, l]} />
+      <meshStandardMaterial map={map} color={map ? '#ffffff' : floor.hex} roughness={rough} metalness={0.02} />
     </mesh>
   );
 }

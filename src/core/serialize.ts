@@ -27,6 +27,8 @@ function compact(cfg: BuildingConfig): Record<string, unknown> {
   if (!cfg.discountPct) delete out.discountPct;
   if (!cfg.zip) delete out.zip;
   if (Object.keys(cfg.quantities ?? {}).length === 0) delete out.quantities;
+  if (!cfg.state) delete out.state;
+  if (!cfg.planItems?.length) delete out.planItems;
   // Openings carry generated ids that do not need to travel.
   out.openings = cfg.openings.map((o) => [o.catalogId, o.wall, o.offset, o.sill]);
   return out;

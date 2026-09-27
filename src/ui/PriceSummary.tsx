@@ -2,8 +2,9 @@
 
 import type { Audience, BuildingConfig, Catalog, Quote } from '../core/types';
 import type { BuildingGeometry } from '../core/geometry';
-import { money, monthlyPayment } from '../core/pricing';
+import { money, monthlyPayment, taxRateFor } from '../core/pricing';
 import { findIssues } from '../core/validate';
+import { feetInches } from '../core/format';
 
 function marginClass(pct: number) {
   if (pct >= 32) return 'margin-good';
@@ -77,6 +78,21 @@ export default function PriceSummary({
           <div className="k">Peak height</div>
           <div className="v">{geo.metrics.peakHeight.toFixed(1)} ft</div>
         </div>
+        <div className="metric">
+          <div className="k">Clear inside</div>
+          <div className="v">
+            {feetInches(geo.metrics.clearWidth)} &times; {feetInches(geo.metrics.clearLength)}
+          </div>
+        </div>
+        <div className="metric">
+          <div className="k">Clear height</div>
+          <div className="v">
+            {feetInches(geo.metrics.clearHeight)}
+            <span style={{ color: 'var(--text-3)', fontWeight: 500, fontSize: 11 }}>
+              {' '}&middot; {feetInches(geo.metrics.sideClearHeight)} at wall
+            </span>
+          </div>
+        </div>
         {internal && (
           <>
             <div className="metric">
@@ -132,7 +148,7 @@ export default function PriceSummary({
           <span className="v">{money(quote.freight)}</span>
         </div>
         <div className="line">
-          <span className="grow">Tax ({(catalog.rules.taxRate * 100).toFixed(2)}%)</span>
+          <span className="grow">Tax ({(taxRateFor(catalog, cfg) * 100).toFixed(2)}%{cfg.state ? ` · ${cfg.state}` : ''})</span>
           <span className="v">{money(quote.tax)}</span>
         </div>
         <div className="line tot">

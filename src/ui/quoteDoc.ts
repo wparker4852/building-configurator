@@ -6,6 +6,7 @@
 import type { Audience, BuildingConfig, Catalog, Quote } from '../core/types';
 import type { BuildingGeometry } from '../core/geometry';
 import { money, monthlyPayment } from '../core/pricing';
+import { feetInches } from '../core/format';
 
 export interface Lead {
   name: string;
@@ -22,17 +23,27 @@ function specRows(cfg: BuildingConfig, catalog: Catalog, geo: BuildingGeometry):
   const name = <T extends { id: string; name: string }>(list: T[], id: string) =>
     list.find((x) => x.id === id)?.name ?? '—';
   const model = catalog.models.find((m) => m.id === cfg.modelId);
-  const enclosure =
-    cfg.enclosure === 'enclosed' ? 'Fully enclosed' : cfg.enclosure === 'partial' ? 'Enclosed on 3 sides' : 'Open';
+  // Described the way the book prices it: sides as a pair, ends one by one.
+  const open = !cfg.sidesClosed && cfg.endsClosed === 0;
+  const enclosure = open
+    ? 'Open'
+    : [
+        cfg.sidesClosed ? 'both sides closed' : 'sides open',
+        cfg.endsClosed === 2 ? 'both ends closed' : cfg.endsClosed === 1 ? 'back end closed' : 'ends open',
+      ].join(', ').replace(/^./, (c) => c.toUpperCase());
+  const m = geo.metrics;
+  const legs = geo.legStyle === 'single' ? 'single legs' : `${geo.legStyle} legs`;
 
   return [
     ['Building', model?.name ?? cfg.modelId],
-    ['Size', `${cfg.width}' W × ${cfg.length}' L × ${cfg.eaveHeight}' eave (${geo.metrics.footprint.toLocaleString()} sq ft)`],
-    ['Peak height', `${geo.metrics.peakHeight.toFixed(1)} ft`],
+    ['Size', `${cfg.width}' W × ${cfg.length}' L × ${cfg.eaveHeight}' eave (${m.footprint.toLocaleString()} sq ft)`],
+    ['Peak height', `${m.peakHeight.toFixed(1)} ft`],
+    ['Inside clear', `${feetInches(m.clearWidth)} wide × ${feetInches(m.clearLength)} long · ${feetInches(m.clearHeight)} under the truss · ${feetInches(m.sideClearHeight)} at the sidewall`],
+    ['Frame', `${name(catalog.gauges, cfg.gaugeId)} · ${legs} · ${cfg.onCenter}' on center`],
     ['Roof', `${name(catalog.roofStyles, cfg.roofStyle)} · ${cfg.pitch}/12 · ${name(catalog.roofings, cfg.roofingId)}`],
     ['Roof color', name(catalog.colors, cfg.roofColorId)],
-    ['Walls', `${enclosure}${cfg.enclosure === 'open' ? '' : ` · ${name(catalog.sidings, cfg.sidingId)}`}`],
-    ['Siding color', cfg.enclosure === 'open' ? '—' : name(catalog.colors, cfg.sidingColorId)],
+    ['Walls', `${enclosure}${open ? '' : ` · ${name(catalog.sidings, cfg.sidingId)}`}`],
+    ['Siding color', open ? '—' : name(catalog.colors, cfg.sidingColorId)],
     ['Trim color', name(catalog.colors, cfg.trimColorId)],
     ['Foundation', name(catalog.floors, cfg.floorId)],
     ['Overhangs', `${cfg.eaveOverhang}' eave · ${cfg.gableOverhang}' gable`],
