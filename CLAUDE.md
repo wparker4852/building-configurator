@@ -120,15 +120,15 @@ Ends, Lean-Tos, Colors, Interior with grey sub-sections, Doors & Windows, Wings,
 Permitting, Tax/Delivery/Install). Lean-Tos, Wings, Divider Walls, Wheel Stops and Wall Panels
 are "coming soon" placeholders. Choices the book doesn't print are shown disabled, not hidden.
 
-- **Walls are chosen wall by wall** (: open / closed / half / gable / columns,
-   none / enclosed / custom).  derives the book's
-  / from them; anything the book can't price (one side, half walls,
+- **Walls are chosen wall by wall** (`cfg.walls`: open / closed / half / gable / columns, and
+  `cfg.exteriorWalls`: none / enclosed / custom). `normalizeConfig` derives the book's
+  `sidesClosed`/`endsClosed` from them; anything the book can't price (one side, half walls,
   gable-only, columns) is listed as unpriced. Doors/windows are only built into **closed** walls
-  (); on any other wall they are kept but not built.
-- **Support Leg Depth** () can go stronger than the book's minimum, never weaker;
+  (`wallsTakeOpenings`); on any other wall they are kept but not built.
+- **Support Leg Depth** (`cfg.legChoice`) can go stronger than the book's minimum, never weaker;
   an upgrade over the book is unpriced.
-- **Roof Overhang** 6" / 1' / 2' drives both the priced  and the drawn overhangs.
-- **Gutters** 4"/6" map to the  /  add-ons (placeholder prices) and are
+- **Roof Overhang** 6" / 1' / 2' drives both the priced `overhang` and the drawn overhangs.
+- **Gutters** 4"/6" map to the `gutters` / `gutters-6` add-ons (placeholder prices) and are
   drawn with downspouts.
 - Viewport: undo/redo (refs, not state updaters — StrictMode is on), dimensions, frame only and
   clear in the top-left toolbar; head tracking, layers and Inside/3D/2D bottom-left. Camera
