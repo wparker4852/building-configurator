@@ -4,7 +4,8 @@
 import type { BuildingConfig, CornerId, ExteriorWalls, LeanTo, LeanToWallId, WallId, WallKind } from '../core/types';
 import { WALL_IDS } from '../core/types';
 import {
-  CORNERS, LEAN_TO_MIN_LENGTH, LEAN_TO_PITCHES, LEAN_TO_WIDTH, connectableCorners, hostOf, leanToLabel, leanToMaxEave,
+  CORNERS, LEAN_TO_MIN_LENGTH, LEAN_TO_PITCHES, LEAN_TO_WIDTH, connectableCorners, cornersWithBoth, hostOf, leanToLabel,
+  leanToMaxEave, reachCorner,
 } from '../core/leanTo';
 import { RadioGroup } from './controls';
 
@@ -23,7 +24,13 @@ export default function LeanToEditor({
 }) {
   const leanTos = cfg.leanTos ?? [];
   const free = WALL_IDS.filter((s) => !leanTos.some((l) => l.side === s));
-  const corners = connectableCorners(cfg);
+  const corners = cornersWithBoth(cfg);
+  const reachable = new Set(connectableCorners(cfg));
+  const connect = (c: CornerId, on: boolean) =>
+    update({
+      leanToCorners: { ...cfg.leanToCorners, [c]: on },
+      ...(on && !reachable.has(c) ? { leanTos: reachCorner(cfg, c) } : {}),
+    });
 
   const set = (id: string, patch: Partial<LeanTo>) =>
     update({ leanTos: leanTos.map((l) => (l.id === id ? { ...l, ...patch } : l)) });
@@ -169,9 +176,10 @@ export default function LeanToEditor({
                 <input
                   type="checkbox"
                   checked={!!cfg.leanToCorners?.[c]}
-                  onChange={(e) => update({ leanToCorners: { ...cfg.leanToCorners, [c]: e.target.checked } })}
+                  onChange={(e) => connect(c, e.target.checked)}
                 />
                 Connect {SIDE_NAME[a.side]} &amp; {SIDE_NAME[b.side]} into one roof line
+                {!reachable.has(c) && <span className="field-note"> (extends them to the corner)</span>}
               </label>
             );
           })}
@@ -191,9 +199,6 @@ export default function LeanToEditor({
               </button>
             ))}
           </div>
-          {leanTos.length > 1 && corners.length === 0 && (
-            <span className="field-note">To connect two at a corner, run both all the way to that corner (full length, or start at that end).</span>
-          )}
         </div>
       )}
     </>

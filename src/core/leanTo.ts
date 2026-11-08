@@ -149,6 +149,27 @@ export function connectableCorners(cfg: BuildingConfig): CornerId[] {
   );
 }
 
+/** Corners with a lean-to on both walls, whether or not they reach it yet. */
+export function cornersWithBoth(cfg: BuildingConfig): CornerId[] {
+  const sides = new Set((cfg.leanTos ?? []).map((l) => l.side));
+  return CORNER_IDS.filter((c) => CORNERS[c].every(({ side }) => sides.has(side)));
+}
+
+/**
+ * The lean-tos with both of a corner's lean-tos run into that corner: one that
+ * already reaches its other end is lengthened to the full wall, otherwise it
+ * slides along the wall to the corner.
+ */
+export function reachCorner(cfg: BuildingConfig, corner: CornerId): LeanTo[] {
+  return (cfg.leanTos ?? []).map((lt) => {
+    const at = CORNERS[corner].find((e) => e.side === lt.side);
+    const hostLen = Math.floor(hostOf(cfg, lt.side).len);
+    if (!at || reaches(lt, hostLen, at.end)) return lt;
+    if (reaches(lt, hostLen, at.end === 'left' ? 'right' : 'left')) return { ...lt, offset: 0, length: hostLen };
+    return { ...lt, offset: at.end === 'left' ? 0 : hostLen - lt.length };
+  });
+}
+
 /** For each lean-to, which of its ends are connected, and whether it owns that corner's roof. */
 function connections(cfg: BuildingConfig) {
   const out = new Map<string, { left?: { corner: CornerId; owner: boolean }; right?: { corner: CornerId; owner: boolean } }>();
