@@ -1,24 +1,16 @@
-// Add, place and remove doors and windows.
+// Add, place and remove doors and windows — on the main walls or any lean-to wall.
 
 import { useMemo, useState } from 'react';
-import type { BuildingConfig, Catalog, Opening, OpeningType, WallId } from '../core/types';
-import { WALL_IDS } from '../core/types';
-import { headroomAt, openingCenterX, openingSize, roofProfile, wallLength, wallTopEdge, wallsTakeOpenings } from '../core/geometry';
+import type { BuildingConfig, Catalog, Opening, OpeningType, WallRef } from '../core/types';
+import { headroomAt, openingCenterX, openingSize } from '../core/geometry';
+import { allWallRefs, wallInfo } from '../core/leanTo';
 import { clampOpening } from '../core/validate';
 import { newOpeningId } from '../core/catalog';
 import { money } from '../core/pricing';
 import { Field, Slider } from './controls';
 
-const WALL_LABEL: Record<WallId, string> = {
-  front: 'Front',
-  back: 'Back',
-  left: 'Left side',
-  right: 'Right side',
-};
-
 /** First offset along a wall where an opening of this width fits without overlapping. */
-function findFreeOffset(cfg: BuildingConfig, catalog: Catalog, wall: WallId, width: number): number | null {
-  const len = wallLength(cfg, wall);
+function findFreeOffset(cfg: BuildingConfig, len: number, wall: WallRef, catalog: Catalog, width: number): number | null {
   if (width > len) return null;
 
   const taken = cfg.openings
@@ -50,16 +42,12 @@ export default function OpeningsEditor({
   catalog: Catalog;
   update: (patch: Partial<BuildingConfig>) => void;
 }) {
-  // Openings are only built into fully closed walls.
-  const present = wallsTakeOpenings(cfg);
-  const buildable = WALL_IDS.filter((w) => present[w]);
+  // Every wall an opening could go in; only fully closed ones get it built.
+  const walls = useMemo(() => allWallRefs(cfg, catalog), [cfg, catalog]);
+  const buildable = walls.filter((w) => w.takesOpenings);
   const [addType, setAddType] = useState(catalog.openingTypes[0]?.id ?? '');
-  const [addWall, setAddWall] = useState<WallId>(buildable[0] ?? 'front');
-
-  const profile = useMemo(
-    () => roofProfile(cfg, catalog.roofStyles.find((r) => r.id === cfg.roofStyle)),
-    [cfg, catalog],
-  );
+  const [addWallPick, setAddWall] = useState<WallRef>('front');
+  const addWall = buildable.some((w) => w.ref === addWallPick) ? addWallPick : (buildable[0]?.ref ?? 'front');
 
   const typeOf = (id: string) => catalog.openingTypes.find((t) => t.id === id);
 
@@ -74,26 +62,22 @@ export default function OpeningsEditor({
 
   const remove = (id: string) => update({ openings: cfg.openings.filter((o) => o.id !== id) });
 
-  const add = () => {
+  /** The opening that would be added, fitted to the wall — or why it cannot be. */
+  const candidate = (): { opening: Opening | null; reason?: string } => {
     const type = typeOf(addType);
-    if (!type) return;
-    const offset = findFreeOffset(cfg, catalog, addWall, type.width);
-    if (offset === null) return;
-    const candidate: Opening = {
-      id: newOpeningId(),
-      catalogId: type.id,
-      wall: addWall,
-      offset,
-      sill: type.defaultSill,
-    };
-    const fitted = clampOpening(candidate, cfg, catalog);
-    if (!fitted) return;
-    update({ openings: [...cfg.openings, fitted] });
+    const info = wallInfo(cfg, catalog, addWall);
+    if (!type || !info) return { opening: null };
+    const offset = findFreeOffset(cfg, info.length, addWall, catalog, type.width);
+    if (offset === null) return { opening: null, reason: `No room left on the ${info.label.toLowerCase()} for a ${type.width}′ opening.` };
+    const fitted = clampOpening(
+      { id: newOpeningId(), catalogId: type.id, wall: addWall, offset, sill: type.defaultSill },
+      cfg,
+      catalog,
+    );
+    if (!fitted) return { opening: null, reason: `A ${type.name.toLowerCase()} does not fit under the ${info.label.toLowerCase()}'s roof line.` };
+    return { opening: fitted };
   };
-
-  const addType_ = typeOf(addType);
-  const canAdd =
-    !!addType_ && buildable.includes(addWall) && findFreeOffset(cfg, catalog, addWall, addType_.width) !== null;
+  const next = candidate();
 
   const grouped = new Map<string, OpeningType[]>();
   for (const t of catalog.openingTypes) {
@@ -113,15 +97,15 @@ export default function OpeningsEditor({
       <div className="list">
         {cfg.openings.map((op) => {
           const type = typeOf(op.catalogId);
-          if (!type) return null;
+          const info = wallInfo(cfg, catalog, op.wall);
+          if (!type || !info) return null;
           const { width, height } = openingSize(op, type);
-          const len = wallLength(cfg, op.wall);
+          const len = info.length;
           const maxOffset = Math.max(0, len - width);
-          const top = wallTopEdge(cfg, op.wall, profile);
           const cx = openingCenterX(op.offset, width, len);
-          const room = headroomAt(top, cx - width / 2, cx + width / 2) - 0.35;
+          const room = headroomAt(info.top, cx - width / 2, cx + width / 2) - 0.35;
           const maxSill = Math.max(0, room - height);
-          const onDeadWall = !present[op.wall];
+          const onDeadWall = !info.takesOpenings;
 
           return (
             <div
@@ -145,11 +129,11 @@ export default function OpeningsEditor({
                 </button>
               </div>
 
-              <select value={op.wall} onChange={(e) => setOpening(op.id, { wall: e.target.value as WallId })}>
-                {WALL_IDS.map((w) => (
-                  <option key={w} value={w} disabled={!present[w]}>
-                    {WALL_LABEL[w]}
-                    {present[w] ? '' : ' (not closed)'}
+              <select value={op.wall} onChange={(e) => setOpening(op.id, { wall: e.target.value as WallRef })}>
+                {walls.map((w) => (
+                  <option key={w.ref} value={w.ref} disabled={!w.takesOpenings}>
+                    {w.label}
+                    {w.takesOpenings ? '' : ' (not closed)'}
                   </option>
                 ))}
               </select>
@@ -217,22 +201,24 @@ export default function OpeningsEditor({
           ))}
         </select>
         <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-          <select value={addWall} onChange={(e) => setAddWall(e.target.value as WallId)} style={{ flex: 1 }}>
+          <select value={addWall} onChange={(e) => setAddWall(e.target.value as WallRef)} style={{ flex: 1 }}>
             {buildable.map((w) => (
-              <option key={w} value={w}>
-                {WALL_LABEL[w]}
+              <option key={w.ref} value={w.ref}>
+                {w.label}
               </option>
             ))}
           </select>
-          <button className="btn sm primary" onClick={add} disabled={!canAdd} style={{ opacity: canAdd ? 1 : 0.45 }}>
+          <button
+            className="btn sm primary"
+            onClick={() => next.opening && update({ openings: [...cfg.openings, next.opening] })}
+            disabled={!next.opening}
+            style={{ opacity: next.opening ? 1 : 0.45 }}
+          >
             Add
           </button>
         </div>
-        {!canAdd && addType_ && (
-          <span className="field-note">
-            No room left on the {WALL_LABEL[addWall].toLowerCase()} for a {addType_.width}&prime; opening.
-          </span>
-        )}
+        {!buildable.length && <span className="field-note">Close a wall (Sides &amp; Ends or Lean-Tos) to add doors and windows.</span>}
+        {next.reason && <span className="field-note">{next.reason}</span>}
       </Field>
     </>
   );

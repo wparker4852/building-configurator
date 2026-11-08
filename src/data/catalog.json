@@ -1,5 +1,5 @@
 {
-  "version": 4,
+  "version": 5,
   "branding": {
     "productName": "3D Building Designer",
     "companyName": "Walker Buildings",
@@ -1024,7 +1024,8 @@
         "Walls": 38,
         "Upgrades": 45,
         "Doors & Windows": 45,
-        "Options": 50
+        "Options": 50,
+        "Lean-tos": 40
       }
     },
     "taxByState": {
@@ -1035,5 +1036,28 @@
       "TN": 0.07,
       "FL": 0.06
     }
+  },
+  "materials": {
+    "source": "Central Steel Buildings contractor component pricing, Contractor (sept26), dated 8/31/26",
+    "tubePerFt": {
+      "14ga": 2.08,
+      "12ga": 2.8
+    },
+    "panelPerFt": {
+      "29ga": 2.75,
+      "26ga": 3.3
+    },
+    "panelCoverage": 3,
+    "trimPerFt": {
+      "jTrim": 5.25,
+      "cornerTrim": 13.25,
+      "ridgeValley": 14.25,
+      "eaveFlashing": 14.25
+    },
+    "hatChannelPerFt": 1.03,
+    "anchorEach": 1.85,
+    "fastenersPerSqFt": 1,
+    "fastenerEach": 0.09,
+    "laborPerSqFt": null
   }
 }

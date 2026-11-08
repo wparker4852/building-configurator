@@ -14,6 +14,7 @@ import type { BuildingGeometry } from '../core/geometry';
 import { strongerLeg, wallKinds } from '../core/geometry';
 import { money } from '../core/pricing';
 import OpeningsEditor from './OpeningsEditor';
+import LeanToEditor from './LeanToEditor';
 import { Accordion, CheckRow, ColorPicker, Field, RadioGroup, Slider, Stepper } from './controls';
 import { SUPPLIERS, getSupplier } from '../core/suppliers';
 import SupplierPicker from './SupplierPicker';
@@ -384,7 +385,7 @@ export default function OptionPanel({
       </Accordion>
 
       <Accordion title="Lean-Tos">
-        <ComingSoon what="Lean-tos" />
+        <LeanToEditor cfg={cfg} update={update} />
       </Accordion>
 
       {/* ── COLORS ─────────────────────────────────────────────────────── */}

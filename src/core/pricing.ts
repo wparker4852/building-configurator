@@ -6,6 +6,7 @@
 import type { AddOn, BuildingConfig, Catalog, LineItem, Quote, WallKind } from './types';
 import type { BuildingGeometry } from './geometry';
 import { strongerLeg, wallKinds } from './geometry';
+import { leanToTakeoff } from './takeoff';
 import { getSupplier, type CostLine } from './suppliers';
 import { pricedComponents } from './componentPricing';
 
@@ -135,6 +136,29 @@ export function priceBuilding(cfg: BuildingConfig, catalog: Catalog, geo: Buildi
     unpriced.push(`${chosenLeg} legs at ${cfg.eaveHeight}' (${supplier.name} prints ${bookLeg} legs at this height)`);
   }
 
+  // ── Lean-tos: priced by material takeoff ───────────────────────────────────
+  // No manufacturer prints lean-tos, so each is priced from what is drawn:
+  // tube, panels, trim, anchors, screws and (once set) install labor, at the
+  // Materials price list's cost, marked up like any other line.
+  for (const lt of geo.leanTos) {
+    const t = leanToTakeoff(lt, cfg, catalog);
+    unpriced.push(...t.unpriced);
+    if (t.cost <= 0) continue;
+    const spec = cfg.leanTos?.find((l) => l.id === lt.id);
+    const sell = round2(t.cost * (1 + markupFor(catalog, 'Lean-tos') / 100));
+    lines.push({
+      key: `lt-${lt.id}`,
+      label: spec ? `${lt.label} ${spec.width}' × ${spec.length}'` : lt.label,
+      detail: t.lines.map((l) => `${l.label} ${l.qty.toLocaleString()} ${l.unit}`).join(' · '),
+      category: 'Lean-tos',
+      qty: 1,
+      unit: 'ea',
+      unitPrice: sell,
+      total: sell,
+      cost: t.cost,
+    });
+  }
+
   // ── Foundation ─────────────────────────────────────────────────────────────
   if (floor && floor.pricePerSqFt > 0) {
     lines.push(line(catalog, 'floor', floor.name, 'Foundation', footprint, 'sq ft', floor.pricePerSqFt));
@@ -166,7 +190,8 @@ export function priceBuilding(cfg: BuildingConfig, catalog: Catalog, geo: Buildi
   };
 
   const openingCounts = new Map<string, number>();
-  for (const wall of geo.walls) {
+  // Main walls and lean-to walls alike: an opening is priced wherever it is built.
+  for (const wall of [...geo.walls, ...geo.leanTos.flatMap((lt) => lt.walls)]) {
     if (!wall.present) continue;
     for (const hole of wall.holes) {
       if (hole.type.resizable) {

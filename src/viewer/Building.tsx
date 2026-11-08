@@ -8,6 +8,7 @@ import { useLayoutEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import type { BuildingConfig, Catalog, ColorOption, MaterialOption } from '../core/types';
 import type { BuildingGeometry, HoleRect, WallSpec } from '../core/geometry';
+import type { LeanToGeometry, RoofSlab } from '../core/leanTo';
 import { finishTexture, floorTexture, galvalumeTexture, roughnessFor, tiled, tiledNormal } from './materials';
 
 /**
@@ -664,6 +665,133 @@ function Gutters({ cfg, geo, color, size }: { cfg: BuildingConfig; geo: Building
   );
 }
 
+// ── Lean-tos ─────────────────────────────────────────────────────────────────
+
+/**
+ * A lean-to's roof: one slab sloping down from the host wall, vertical AG
+ * panels (ribs running down the slope), bare galvalume underneath.
+ */
+function LeanToRoofSlab({ slab, thickness, tile, skin }: { slab: RoofSlab; thickness: number; tile: number; skin: Skin }) {
+  const quat = useMemo(() => {
+    const x = new THREE.Vector3(...slab.slopeDir);
+    const y = new THREE.Vector3(...slab.normal);
+    // Right-handed basis: z follows from x and y (it lies along the run).
+    const z = new THREE.Vector3().crossVectors(x, y);
+    return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, y, z));
+  }, [slab.slopeDir, slab.normal]);
+  const position = useMemo(
+    () => new THREE.Vector3(...slab.center).addScaledVector(new THREE.Vector3(...slab.normal), thickness / 2),
+    [slab.center, slab.normal, thickness],
+  );
+  const { map, normalMap } = usePanelMaps('ribbed', skin.roofColor, 1, slab.runLength / tile, true);
+  const under = useMemo(() => {
+    const tex = galvalumeTexture().clone();
+    tex.needsUpdate = true;
+    tex.repeat.set(1, slab.runLength / tile);
+    return tex;
+  }, [slab.runLength, tile]);
+  return (
+    <mesh position={position} quaternion={quat} castShadow receiveShadow>
+      <boxGeometry args={[slab.slopeLength, thickness, slab.runLength]} />
+      {[0, 1, 2, 4, 5].map((i) => (
+        <meshStandardMaterial
+          key={i}
+          attach={`material-${i}`}
+          map={map}
+          normalMap={i === 2 ? normalMap : null}
+          normalScale={NORMAL_SCALE}
+          color="#ffffff"
+          roughness={roughnessFor(skin.roofColor.metallic ?? 0.3)}
+          metalness={(skin.roofColor.metallic ?? 0.3) * 0.5}
+        />
+      ))}
+      <meshStandardMaterial attach="material-3" map={under} metalness={0.5} roughness={0.42} />
+    </mesh>
+  );
+}
+
+/**
+ * One triangle of a connected corner's hip roof. Texture coordinates are in
+ * feet down the slope and across it, so the ribs line up with the slabs.
+ */
+function HipTriangle({ points, thickness, tile, skin }: { points: [number, number, number][]; thickness: number; tile: number; skin: Skin }) {
+  const geometry = useDisposableGeometry(() => {
+    const [a, b, c] = points.map((p) => new THREE.Vector3(...p));
+    const n = new THREE.Vector3().crossVectors(b.clone().sub(a), c.clone().sub(a)).normalize();
+    if (n.y < 0) n.negate();
+    // Down the slope: straight down, flattened into the plane.
+    const down = new THREE.Vector3(0, -1, 0).addScaledVector(n, n.y).normalize();
+    const across = new THREE.Vector3().crossVectors(n, down);
+    const lift = n.clone().multiplyScalar(thickness);
+    const g = new THREE.BufferGeometry();
+    const pts = [a, b, c].map((p) => p.clone().add(lift));
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pts.flatMap((p) => [p.x, p.y, p.z]), 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(pts.flatMap((p) => [p.dot(down), p.dot(across)]), 2));
+    g.computeVertexNormals();
+    return g;
+  }, [JSON.stringify(points), thickness]);
+  const { map, normalMap } = usePanelMaps('ribbed', skin.roofColor, 1, 1 / tile, true);
+  return (
+    <mesh geometry={geometry} castShadow receiveShadow>
+      <meshStandardMaterial
+        map={map}
+        normalMap={normalMap}
+        normalScale={NORMAL_SCALE}
+        color="#ffffff"
+        side={THREE.DoubleSide}
+        roughness={roughnessFor(skin.roofColor.metallic ?? 0.3)}
+        metalness={(skin.roofColor.metallic ?? 0.3) * 0.5}
+      />
+    </mesh>
+  );
+}
+
+/** A straight piece of trim between two points. */
+function TrimRun({ a, b, size, color }: { a: [number, number, number]; b: [number, number, number]; size: [number, number]; color: ColorOption }) {
+  const { position, quaternion, length } = useMemo(() => {
+    const A = new THREE.Vector3(...a);
+    const B = new THREE.Vector3(...b);
+    const dir = B.clone().sub(A);
+    return {
+      position: A.clone().add(B).multiplyScalar(0.5),
+      quaternion: new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(1, 0, 0), dir.clone().normalize()),
+      length: dir.length(),
+    };
+  }, [a, b]);
+  return (
+    <mesh position={position} quaternion={quaternion} castShadow>
+      <boxGeometry args={[length, size[0], size[1]]} />
+      <meshStandardMaterial color={color.hex} roughness={roughnessFor(color.metallic ?? 0.25)} metalness={(color.metallic ?? 0.25) * 0.6} />
+    </mesh>
+  );
+}
+
+function LeanTo({ lt, catalog, skin }: { lt: LeanToGeometry; catalog: Catalog; skin: Skin }) {
+  const t = catalog.rules.roofThickness;
+  const tile = skin.roofing.tileHeight ?? 3;
+  const s = lt.roof;
+  // Outer eave: the low edge of the slab, under which the fascia hangs.
+  const low = new THREE.Vector3(...s.center).addScaledVector(new THREE.Vector3(...s.slopeDir), s.slopeLength / 2);
+  const along = new THREE.Vector3(...s.alongDir).multiplyScalar(s.runLength / 2);
+  const ea = low.clone().sub(along);
+  const eb = low.clone().add(along);
+  return (
+    <group>
+      {lt.walls.filter((w) => w.present).map((wall) => (
+        <Wall key={wall.id} wall={wall} catalog={catalog} skin={skin} />
+      ))}
+      <LeanToRoofSlab slab={s} thickness={t} tile={tile} skin={skin} />
+      {lt.corners.map((c) => (
+        <HipTriangle key={c.key} points={c.points} thickness={t} tile={tile} skin={skin} />
+      ))}
+      {lt.hips.map(([a, b], i) => (
+        <TrimRun key={i} a={[a[0], a[1] + t + 0.02, a[2]]} b={[b[0], b[1] + t + 0.02, b[2]]} size={[0.08, 0.6]} color={skin.trimColor} />
+      ))}
+      <TrimRun a={[ea.x, ea.y - 0.15, ea.z]} b={[eb.x, eb.y - 0.15, eb.z]} size={[0.4, 0.12]} color={skin.trimColor} />
+    </group>
+  );
+}
+
 function Floor({ cfg, catalog }: { cfg: BuildingConfig; catalog: Catalog }) {
   const floor = catalog.floors.find((f) => f.id === cfg.floorId);
   const pad = 0.6;
@@ -722,6 +850,9 @@ export default function Building({
       ))}
       <CornerTrim cfg={cfg} geo={geo} skin={skin} />
       <Roof cfg={cfg} catalog={catalog} geo={geo} skin={skin} />
+      {geo.leanTos.map((lt) => (
+        <LeanTo key={lt.id} lt={lt} catalog={catalog} skin={skin} />
+      ))}
       {cfg.gutters && cfg.gutters !== 'none' && <Gutters cfg={cfg} geo={geo} color={skin.gutterColor} size={cfg.gutters} />}
     </group>
   );

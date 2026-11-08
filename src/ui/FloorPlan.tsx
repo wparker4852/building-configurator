@@ -5,7 +5,7 @@
 // the design.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { BuildingConfig, PlanItem, WallId } from '../core/types';
+import type { BuildingConfig, PlanItem } from '../core/types';
 import type { BuildingGeometry } from '../core/geometry';
 import { FLOOR_PLAN_ITEMS, checkFit, newPlanItemId, placedRect, type Fit } from '../core/floorPlan';
 import { feetInches } from '../core/format';
@@ -74,14 +74,14 @@ export default function FloorPlan({
     return () => ro.disconnect();
   }, []);
 
-  // Fit the building to the canvas, then apply zoom.
+  // Fit the building and its lean-tos to the canvas, then apply zoom. The plan
+  // is centred on the main building, so size by the farther edge each way.
   const turned = view.rot % 180 !== 0;
+  const spanX = 2 * Math.max(-geo.bounds.minX, geo.bounds.maxX);
+  const spanZ = 2 * Math.max(-geo.bounds.minZ, geo.bounds.maxZ);
   const fitScale = Math.max(
     3,
-    Math.min(
-      (size.w - MARGIN * 2) / (turned ? cfg.length : cfg.width),
-      (size.h - MARGIN * 2) / (turned ? cfg.width : cfg.length),
-    ),
+    Math.min((size.w - MARGIN * 2) / (turned ? spanZ : spanX), (size.h - MARGIN * 2) / (turned ? spanX : spanZ)),
   );
   const S = fitScale * view.zoom;
 
@@ -465,6 +465,9 @@ function drawPlan(ctx: CanvasRenderingContext2D, a: DrawArgs) {
   }
   ctx.fillStyle = 'rgba(255,255,255,0.6)';
   ctx.fillRect(-W / 2, -L / 2, W, L);
+  // Lean-tos: a lighter fill over each strip and connected corner.
+  ctx.fillStyle = 'rgba(255,195,1,0.10)';
+  for (const lt of geo.leanTos) for (const f of lt.footprints) ctx.fillRect(f.x0, f.z0, f.x1 - f.x0, f.z1 - f.z0);
 
   // Clear floor: inside faces of the legs and end bents.
   const cw = geo.metrics.clearWidth / 2;
@@ -478,20 +481,17 @@ function drawPlan(ctx: CanvasRenderingContext2D, a: DrawArgs) {
   // Legs and endwall studs, where they meet the floor.
   ctx.fillStyle = '#6b737c';
   for (const m of geo.frame) {
-    if (m.kind !== 'leg' && m.kind !== 'endwall-stud') continue;
-    if (m.position[1] - m.size[1] / 2 > 0.05) continue;
+    // Lean-to posts are drawn as rotated members whose length is size[0].
+    const bottom = m.kind === 'lt-post' ? m.position[1] - m.size[0] / 2 : m.position[1] - m.size[1] / 2;
+    if (m.kind !== 'leg' && m.kind !== 'endwall-stud' && m.kind !== 'lt-post') continue;
+    if (bottom > 0.05) continue;
     ctx.fillRect(m.position[0] - geo.tube / 2, m.position[2] - geo.tube / 2, geo.tube, geo.tube);
   }
 
-  // Walls: solid where built, dashed where open, broken at each opening.
-  const edges: Record<WallId, [number, number, number, number]> = {
-    front: [-W / 2, L / 2, W / 2, L / 2],
-    back: [W / 2, -L / 2, -W / 2, -L / 2],
-    right: [W / 2, L / 2, W / 2, -L / 2],
-    left: [-W / 2, -L / 2, -W / 2, L / 2],
-  };
-  for (const wall of geo.walls) {
-    const [x0, y0, x1, y1] = edges[wall.id];
+  // Walls, main and lean-to: solid where built, dashed where open, broken at
+  // each opening. Each wall knows its own outside face in plan.
+  for (const wall of [...geo.walls, ...geo.leanTos.flatMap((lt) => lt.walls)]) {
+    const { x0, z0: y0, x1, z1: y1 } = wall.face;
     const len = Math.hypot(x1 - x0, y1 - y0);
     const ux = (x1 - x0) / len;
     const uy = (y1 - y0) / len;

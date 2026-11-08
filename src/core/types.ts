@@ -27,6 +27,15 @@ export type PanelOrientation = 'horizontal' | 'vertical';
 /** Frame (leg/bow) spacing in feet. 4' is required for most certifications. */
 export type OnCenter = 4 | 5;
 export type WallId = 'front' | 'back' | 'left' | 'right';
+
+/** The three walls of a lean-to: the outer face and its two ends (left/right as seen from outside the host wall). */
+export type LeanToWallId = 'outer' | 'left' | 'right';
+
+/** Any wall an opening can go in: a main wall, or a lean-to wall as `lt:<leanToId>:<wall>`. */
+export type WallRef = WallId | `lt:${string}:${LeanToWallId}`;
+
+/** A corner of the main building, where two lean-tos can be connected into one roof line. */
+export type CornerId = 'front-left' | 'front-right' | 'back-left' | 'back-right';
 export type TextureKind = 'ribbed' | 'lap' | 'shingle' | 'smooth' | 'board-batten';
 
 export const WALL_IDS: WallId[] = ['front', 'back', 'left', 'right'];
@@ -82,7 +91,7 @@ export interface Opening {
   id: string;
   /** References OpeningType.id in the catalog. */
   catalogId: string;
-  wall: WallId;
+  wall: WallRef;
   /**
    * Distance in feet from the LEFT edge of the wall to the left edge of the
    * opening, as seen by someone standing outside looking at that wall.
@@ -169,6 +178,58 @@ export interface BuildingConfig {
   gutterColorId?: string;
   /** Which way the wainscot panels run. */
   wainscotOrientation?: PanelOrientation;
+  /** Single-slope additions hung off the main walls; at most one per side. */
+  leanTos?: LeanTo[];
+  /** Corners where the two lean-tos meeting there share one continuous roof line. */
+  leanToCorners?: Partial<Record<CornerId, boolean>>;
+}
+
+/**
+ * A lean-to: a single-slope roof and frame hung off one side of the main
+ * building, high edge against the host wall, sloping down and away from it.
+ */
+export interface LeanTo {
+  id: string;
+  /** The main-building wall it hangs off. */
+  side: WallId;
+  /** How far it projects out from the host wall, 4'–20' in 1' steps. */
+  width: number;
+  /** How much of the host wall it runs along, in 1' steps. */
+  length: number;
+  /** From the left end of the host wall as seen from outside, to the lean-to's left end. */
+  offset: number;
+  /** Height of the low (outer) eave. */
+  eaveHeight: number;
+  /** Roof rise per 12, chosen per lean-to. Panels always run ridge to eave (vertical). */
+  pitch: number;
+  exteriorWalls: ExteriorWalls;
+  walls: Record<LeanToWallId, WallKind>;
+}
+
+/**
+ * Material costs for anything priced by takeoff (lean-tos now, partition walls
+ * next) rather than from a manufacturer's printed matrix. Cost of goods; the
+ * category markup turns it into a sell price.
+ */
+export interface MaterialCosts {
+  /** Where the figures came from. */
+  source: string;
+  /** Square frame tube, $ per foot, by gauge id. */
+  tubePerFt: Record<string, number>;
+  /** AG panel, $ per running foot of one panel, by gauge ('29ga', '26ga'). */
+  panelPerFt: Record<string, number>;
+  /** Coverage width of one panel, in feet. */
+  panelCoverage: number;
+  /** Trim, $ per foot. */
+  trimPerFt: { jTrim: number; cornerTrim: number; ridgeValley: number; eaveFlashing: number };
+  hatChannelPerFt: number;
+  /** One anchor per post. */
+  anchorEach: number;
+  /** Fastener allowance: screws per square foot of panel, and the cost of one. */
+  fastenersPerSqFt: number;
+  fastenerEach: number;
+  /** Install labor, $ per square foot of footprint. Null until someone sets it. */
+  laborPerSqFt: number | null;
 }
 
 // ── Catalog ──────────────────────────────────────────────────────────────────
@@ -391,6 +452,8 @@ export interface Catalog {
   floors: FloorOption[];
   addOns: AddOn[];
   rules: PricingRules;
+  /** Costs for takeoff-priced work (lean-tos, partition walls). */
+  materials?: MaterialCosts;
 }
 
 // ── Pricing output ───────────────────────────────────────────────────────────

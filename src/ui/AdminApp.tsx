@@ -11,6 +11,7 @@ import { money } from '../core/pricing';
 import ComponentPricing from './ComponentPricing';
 import { BRAND } from './brand';
 import AddPartForm from './AddPartForm';
+import MaterialsSheet from './MaterialsSheet';
 
 function download(name: string, content: string, type: string) {
   const url = URL.createObjectURL(new Blob([content], { type }));
@@ -135,6 +136,10 @@ export default function AdminApp({
           </p>
 
           <ComponentPricing defaultMarkupPct={catalog.rules.markup.defaultPct} />
+
+          <Sheet title="Materials (takeoff pricing: lean-tos, partition walls)">
+            <MaterialsSheet catalog={catalog} edit={edit} />
+          </Sheet>
 
           <Sheet title="Add a part">
             <AddPartForm catalog={catalog} onAdd={edit} />

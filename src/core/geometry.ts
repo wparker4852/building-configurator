@@ -14,8 +14,10 @@ import type {
   WallId,
   WallKind,
 } from './types';
+import type { WallRef } from './types';
 import { WALL_IDS } from './types';
 import { getSupplier } from './suppliers';
+import { buildLeanTos, type LeanToGeometry } from './leanTo';
 
 export interface Pt {
   x: number;
@@ -34,7 +36,8 @@ export interface HoleRect {
 }
 
 export interface WallSpec {
-  id: WallId;
+  /** A main wall id, or a lean-to wall ref (`lt:<id>:outer|left|right`). */
+  id: WallRef;
   /** Closed, half, gable-only, columns or open. */
   kind: WallKind;
   label: string;
@@ -42,6 +45,10 @@ export interface WallSpec {
   length: number;
   /** Outline polygon in wall-local coordinates, x in [-length/2, length/2], y up from 0. */
   outline: Pt[];
+  /** Top edge in wall-local coordinates, left to right as seen from outside. */
+  top: Pt[];
+  /** The outside face in plan, left end to right end as seen from outside (world x/z). */
+  face: { x0: number; z0: number; x1: number; z1: number };
   rotationY: number;
   position: [number, number, number];
   holes: HoleRect[];
@@ -70,7 +77,8 @@ export interface RoofPlane {
 export type MemberKind =
   | 'leg' | 'bow' | 'base-rail' | 'eave-rail' | 'knee-brace' | 'peak-brace'
   | 'bottom-chord' | 'chord-strut' | 'hat-channel' | 'endwall-stud' | 'ladder-rung'
-  | 'jamb' | 'header' | 'sill' | 'girt';
+  | 'jamb' | 'header' | 'sill' | 'girt'
+  | 'lt-post' | 'lt-rafter' | 'lt-header' | 'ledger';
 
 /** One length of square tubing in the frame. */
 export interface TubeMember {
@@ -81,6 +89,8 @@ export interface TubeMember {
   size: [number, number, number];
   /** Part of the leg upgrade the book charges for: second leg, its base rail, rungs. */
   upgrade?: boolean;
+  /** The lean-to this member belongs to; absent for the main building. */
+  leanToId?: string;
 }
 
 export interface BuildingGeometry {
@@ -97,6 +107,10 @@ export interface BuildingGeometry {
   legStyle: LegStyle;
   /** Outside dimension of the frame tube for the chosen gauge. */
   tube: number;
+  /** Lean-tos, each with its own walls, roof and frame (frame also merged into `frame`). */
+  leanTos: LeanToGeometry[];
+  /** Plan extent of everything, lean-tos included. */
+  bounds: { minX: number; maxX: number; minZ: number; maxZ: number };
   metrics: Metrics;
 }
 
@@ -496,12 +510,21 @@ function buildWall(
   }
 
   const tops = top.map((p) => p.y);
+  // Outside face in plan, left to right as seen from outside.
+  const faces: Record<WallId, WallSpec['face']> = {
+    front: { x0: -halfW, z0: halfL, x1: halfW, z1: halfL },
+    back: { x0: halfW, z0: -halfL, x1: -halfW, z1: -halfL },
+    right: { x0: halfW, z0: halfL, x1: halfW, z1: -halfL },
+    left: { x0: -halfW, z0: -halfL, x1: -halfW, z1: halfL },
+  };
   return {
     id: wall,
     kind,
     label: WALL_LABELS[wall],
     length: len,
     outline,
+    top,
+    face: faces[wall],
     rotationY,
     position,
     holes,
@@ -560,13 +583,13 @@ function buildRoof(cfg: BuildingConfig, catalog: Catalog, profile: Pt[], rounded
 }
 
 /** A span along one axis, [from, to], in world feet. */
-type Span = [number, number];
+export type Span = [number, number];
 
 /**
  * Split a run from `a` to `b` around the given cuts, dropping any piece too
  * short to be a real length of tube. Base rails are cut out at every door.
  */
-function splitRun(a: number, b: number, cuts: Span[], minLen: number): Span[] {
+export function splitRun(a: number, b: number, cuts: Span[], minLen: number): Span[] {
   const sorted = cuts
     .map(([c0, c1]) => [Math.max(a, Math.min(c0, c1)), Math.min(b, Math.max(c0, c1))] as Span)
     .filter(([c0, c1]) => c1 > c0)
@@ -987,16 +1010,30 @@ export function buildGeometry(cfg: BuildingConfig, catalog: Catalog): BuildingGe
     sideClearHeight: frame.sideClearHeight,
   };
 
+  // Lean-tos: their own walls and roof, their frame merged into the building's.
+  const leanTos = buildLeanTos(cfg, catalog, tube);
+  const bounds = { minX: -cfg.width / 2, maxX: cfg.width / 2, minZ: -cfg.length / 2, maxZ: cfg.length / 2 };
+  for (const lt of leanTos) {
+    for (const f of lt.footprints) {
+      bounds.minX = Math.min(bounds.minX, f.x0);
+      bounds.maxX = Math.max(bounds.maxX, f.x1);
+      bounds.minZ = Math.min(bounds.minZ, f.z0);
+      bounds.maxZ = Math.max(bounds.maxZ, f.z1);
+    }
+  }
+
   return {
     baseProfile,
     profile,
     walls,
     roofPlanes,
-    frame: frame.members,
+    frame: [...frame.members, ...leanTos.flatMap((lt) => lt.members)],
     eaves: eaveHeights(cfg),
     rounded,
     legStyle,
     tube,
+    leanTos,
+    bounds,
     metrics,
   };
 }

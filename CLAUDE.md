@@ -117,8 +117,8 @@ walls charged could disagree (e.g. sides open + one end closed drew both sides).
 
 The left panel is yellow accordion sections in the partner's order (Building Frame, Roof, Sides &
 Ends, Lean-Tos, Colors, Interior with grey sub-sections, Doors & Windows, Wings, Foundation,
-Permitting, Tax/Delivery/Install). Lean-Tos, Wings, Divider Walls, Wheel Stops and Wall Panels
-are "coming soon" placeholders. Choices the book doesn't print are shown disabled, not hidden.
+Permitting, Tax/Delivery/Install). Wings, Divider Walls, Wheel Stops and Wall Panels are "coming
+soon" placeholders. Choices the book doesn't print are shown disabled, not hidden.
 
 - **Walls are chosen wall by wall** (`cfg.walls`: open / closed / half / gable / columns, and
   `cfg.exteriorWalls`: none / enclosed / custom). `normalizeConfig` derives the book's
@@ -135,15 +135,32 @@ are "coming soon" placeholders. Choices the book doesn't print are shown disable
   presets are internal-only. Model cards, Save & share, Feedback, the monthly payment and the
   freight-miles note were removed from the customer view per the mockup.
 
+### Lean-tos and takeoff pricing (2026-11-08)
+
+The owner's direction: **no "building types"**. Any building, carport to commercial, is built
+from options; anything the books don't print is priced from the material it takes.
+
+- **Lean-tos** (`core/leanTo.ts`, `ui/LeanToEditor.tsx`): one per side, width 4–20', length
+  4' to the host wall in 1' steps with an offset, single slope 1–4:12, vertical panels. The high
+  edge tucks 0.5' under the main eave (`leanToMaxHigh`); eave choices and too-steep pitches are
+  limited to fit. Walls none / enclosed / custom (outer, left end, right end: open / closed /
+  half / columns). **Connected corners** (`cfg.leanToCorners`) wrap two lean-tos into one roof
+  line with a hip; they share width/pitch/eave, led by the front/back one (`normalizeLeanTos`).
+- Lean-to walls are `WallRef`s `lt:<id>:<outer|left|right>`; openings work on them like any wall
+  (`wallInfo`, `allWallRefs`), only on closed walls and only for opening types allowed on 'any'.
+- **Takeoff** (`core/takeoff.ts`): counts the feet of tube, hat channel, panel, trim, anchors and
+  screws the lean-to geometry actually draws, priced from `catalog.materials` (Central Steel
+  contractor sheet, Admin → Materials). Markup category `Lean-tos`. **Install labor is not set**
+  (`laborPerSqFt: null`) and is reported as unpriced until the owner enters a rate. Screws at
+  1/sq ft is an allowance, not a book figure. Lean-to frame uses the main building's gauge.
+- Not yet: foundation/floor under lean-tos, partition walls (same takeoff, next).
+
 ### Next, roughly in order
 
 1. **Frameout pricing.** Doors/windows are wired; frameouts are not yet charged per opening.
    The books price a frameout *without* a door *higher* than one with ($250 vs $200), and door
    sizes differ between suppliers.
-2. **Lean-tos.** The biggest missing geometry primitive. Unlocks the whole Barns category, which
-   is centre-building-plus-lean-tos: Standard (separate roofs), Raised Center (centre lifted
-   clear), Straight Roof (one continuous roof). Garage-with-lean-to and free-standing lean-to
-   fall out of the same primitive. The Barns category is deliberately absent until this exists.
+2. **Partition walls** inside the building, priced by the same takeoff.
 3. **Storage sections** (end / left / right) — what makes a Utility Carport a distinct product.
 4. **Auth + a backend.** `mode=internal` is cosmetic, not a security boundary. Leads and catalog
    edits live in `localStorage`. `core/leads.ts` and `core/catalog.ts` are the only files that
@@ -190,7 +207,7 @@ derived at runtime in `App.tsx` from `catalog.branding.accent` — never put whi
 - The canvas uses `preserveDrawingBuffer` so the quote document can embed the actual render.
 - Admin catalog edits persist to `localStorage` and silently override the shipped catalog. If
   pricing looks wrong, hit **Reset** in the admin header. Overrides from an older `version` are
-  ignored, so bump `catalog.json`'s `version` whenever its shape changes (now 4).
+  ignored, so bump `catalog.json`'s `version` whenever its shape changes (now 5).
 - Canvas-painted textures parse hex by hand — `THREE.Color` converts to linear and paints
   everything too dark.
 - Orientation labels draw over everything (`depthTest: false`) and fade by facing; drawn

@@ -3,12 +3,11 @@
 // Runs on every change, on model switches, and on anything decoded from a URL,
 // so the rest of the app can assume the config it holds is buildable.
 
-import type { BuildingConfig, Catalog, LegStyle, Opening, PlanItem, WallId, WallKind } from './types';
+import type { BuildingConfig, Catalog, LegStyle, Opening, PlanItem, WallKind, WallRef } from './types';
 import { WALL_IDS } from './types';
 import { FLOOR_PLAN_ITEMS } from './floorPlan';
-import {
-  profileHeightAt, roofProfile, wallLength, wallTopEdge, headroomAt, openingCenterX, openingSize, wallsTakeOpenings,
-} from './geometry';
+import { profileHeightAt, roofProfile, headroomAt, openingCenterX, openingSize } from './geometry';
+import { isLeanToWall, leanToLabel, leanToMaxHigh, normalizeLeanTos, wallInfo } from './leanTo';
 import { getSupplier } from './suppliers';
 
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
@@ -169,6 +168,10 @@ export function normalizeConfig(input: BuildingConfig, catalog: Catalog): Buildi
   }
   cfg.quantities = quantities;
 
+  // Lean-tos before openings: an opening can sit in a lean-to wall, and one
+  // whose lean-to is gone has nowhere to be.
+  normalizeLeanTos(cfg);
+
   cfg.openings = (cfg.openings ?? [])
     .filter((op) => catalog.openingTypes.some((t) => t.id === op.catalogId))
     .map((op) => clampOpening(op, cfg, catalog))
@@ -181,12 +184,14 @@ export function normalizeConfig(input: BuildingConfig, catalog: Catalog): Buildi
 export function clampOpening(op: Opening, cfg: BuildingConfig, catalog: Catalog): Opening | null {
   const type = catalog.openingTypes.find((t) => t.id === op.catalogId);
   if (!type) return null;
-  if (type.allowedWalls !== 'any' && !type.allowedWalls.includes(op.wall)) return null;
+  // Wall-restricted types (end walls only, say) only go on those main walls;
+  // a lean-to wall takes any type that is allowed anywhere.
+  if (type.allowedWalls !== 'any' && (isLeanToWall(op.wall) || !type.allowedWalls.includes(op.wall))) return null;
 
-  const len = wallLength(cfg, op.wall);
-
-  const profile = roofProfile(cfg, catalog.roofStyles.find((r) => r.id === cfg.roofStyle));
-  const top = wallTopEdge(cfg, op.wall, profile);
+  const info = wallInfo(cfg, catalog, op.wall);
+  if (!info) return null;
+  const len = info.length;
+  const top = info.top;
 
   // Resizable types carry their own size; clamp it to the type's limits and
   // to the wall before anything else depends on it.
@@ -232,7 +237,7 @@ export function findIssues(cfg: BuildingConfig, catalog: Catalog): Issue[] {
   const profile = roofProfile(cfg, catalog.roofStyles.find((r) => r.id === cfg.roofStyle));
 
   // Openings that overlap each other on the same wall.
-  const byWall = new Map<WallId, { a: number; b: number; name: string }[]>();
+  const byWall = new Map<WallRef, { a: number; b: number; name: string }[]>();
   for (const op of cfg.openings) {
     const type = catalog.openingTypes.find((t) => t.id === op.catalogId);
     if (!type) continue;
@@ -247,7 +252,7 @@ export function findIssues(cfg: BuildingConfig, catalog: Catalog): Issue[] {
       if (sorted[i].a < sorted[i - 1].b - 1e-6) {
         issues.push({
           level: 'error',
-          message: `On the ${wall} wall, "${sorted[i - 1].name}" and "${sorted[i].name}" overlap.`,
+          message: `On the ${wallInfo(cfg, catalog, wall)?.label.toLowerCase() ?? wall} wall, "${sorted[i - 1].name}" and "${sorted[i].name}" overlap.`,
         });
       }
     }
@@ -255,9 +260,7 @@ export function findIssues(cfg: BuildingConfig, catalog: Catalog): Issue[] {
 
   // Doors on a wall that is not being built.
   // Openings are only built into fully closed walls.
-  const present = wallsTakeOpenings(cfg);
-  const openWalls = WALL_IDS.filter((w) => !present[w]);
-  const stranded = cfg.openings.filter((o) => openWalls.includes(o.wall)).length;
+  const stranded = cfg.openings.filter((o) => !wallInfo(cfg, catalog, o.wall)?.takesOpenings).length;
   if (stranded > 0) {
     issues.push({
       level: 'warning',
@@ -275,6 +278,17 @@ export function findIssues(cfg: BuildingConfig, catalog: Catalog): Issue[] {
 
   if (cfg.width >= 40 && cfg.roofStyle === 'single-slope') {
     issues.push({ level: 'warning', message: 'Single-slope roofs over 40′ wide usually need an interior post line.' });
+  }
+
+  // A lean-to too wide or too steep to fit under the main eave.
+  for (const lt of cfg.leanTos ?? []) {
+    const high = lt.eaveHeight + (lt.width * lt.pitch) / 12;
+    if (high > leanToMaxHigh(cfg, lt.side) + 1e-6) {
+      issues.push({
+        level: 'error',
+        message: `${leanToLabel(lt.side)}: at ${lt.width}' wide and ${lt.pitch}:12 its high edge (${high.toFixed(1)}') is above the main eave. Lower the pitch, narrow it, or raise the building.`,
+      });
+    }
   }
 
   return issues;

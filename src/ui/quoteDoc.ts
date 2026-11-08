@@ -8,6 +8,7 @@ import type { BuildingGeometry } from '../core/geometry';
 import { money, monthlyPayment } from '../core/pricing';
 import { feetInches } from '../core/format';
 import { BRAND } from './brand';
+import { leanToLabel } from '../core/leanTo';
 
 export interface Lead {
   name: string;
@@ -48,6 +49,10 @@ function specRows(cfg: BuildingConfig, catalog: Catalog, geo: BuildingGeometry):
     ['Trim color', name(catalog.colors, cfg.trimColorId)],
     ['Foundation', name(catalog.floors, cfg.floorId)],
     ['Overhangs', `${cfg.eaveOverhang}' eave · ${cfg.gableOverhang}' gable`],
+    ...(cfg.leanTos ?? []).map((lt): [string, string] => [
+      leanToLabel(lt.side),
+      `${lt.width}' × ${lt.length}' · ${lt.eaveHeight}' eave · ${lt.pitch}:12 · walls ${lt.exteriorWalls === 'none' ? 'open' : lt.exteriorWalls === 'enclosed' ? 'closed' : `outer ${lt.walls.outer}, ends ${lt.walls.left}/${lt.walls.right}`}`,
+    ]),
   ];
 }
 

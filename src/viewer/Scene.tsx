@@ -499,10 +499,14 @@ export default function Scene({
 }: SceneProps) {
   // Pull back far enough that the building's bounding sphere fits the vertical
   // field of view, with a margin so nothing clips at the edges.
+  const b = geo.bounds;
   const radius = useMemo(() => {
-    const bounding = 0.5 * Math.hypot(cfg.width, cfg.length, geo.metrics.peakHeight);
+    // Lean-tos widen the footprint; frame the farther edge each way.
+    const spanX = 2 * Math.max(-b.minX, b.maxX);
+    const spanZ = 2 * Math.max(-b.minZ, b.maxZ);
+    const bounding = 0.5 * Math.hypot(spanX, spanZ, geo.metrics.peakHeight);
     return Math.max(24, (bounding / Math.sin((FOV * Math.PI) / 360)) * 1.28);
-  }, [cfg.width, cfg.length, geo.metrics.peakHeight]);
+  }, [b.minX, b.maxX, b.minZ, b.maxZ, geo.metrics.peakHeight]);
   const focusY = geo.metrics.peakHeight * 0.4;
   const eye = Math.min(cfg.eaveHeight * 0.55, 6);
   const stand = useMemo(() => standingSpot(cfg.planItems ?? [], geo), [cfg.planItems, geo]);

@@ -56,8 +56,28 @@ export function checkFit(items: PlanItem[], geo: BuildingGeometry): Fit[] {
   const cl = geo.metrics.clearLength / 2;
   const rects = items.map(placedRect);
   const eps = 0.01;
+  // Floor an item may sit on: the main building's clear floor, or under a
+  // lean-to (its footprint, spilling into the main building through the
+  // shared side). An item is inside if it lies within the union of the main
+  // clear floor and every lean-to strip it touches.
+  const floors = [
+    { x0: -cw, x1: cw, z0: -cl, z1: cl },
+    ...geo.leanTos.flatMap((lt) => lt.footprints),
+  ];
+  const within = (r: { x0: number; x1: number; y0: number; y1: number }) => {
+    // Sample a grid over the item and require every point to be on some floor.
+    const steps = 6;
+    for (let i = 0; i <= steps; i++) {
+      for (let j = 0; j <= steps; j++) {
+        const x = r.x0 + ((r.x1 - r.x0) * i) / steps;
+        const z = r.y0 + ((r.y1 - r.y0) * j) / steps;
+        if (!floors.some((f) => x >= f.x0 - eps && x <= f.x1 + eps && z >= f.z0 - eps && z <= f.z1 + eps)) return false;
+      }
+    }
+    return true;
+  };
   return rects.map((r, i) => {
-    if (r.x0 < -cw - eps || r.x1 > cw + eps || r.y0 < -cl - eps || r.y1 > cl + eps) return 'outside';
+    if (!within(r)) return 'outside';
     const hit = rects.some(
       (o, j) => j !== i && r.x0 < o.x1 - eps && r.x1 > o.x0 + eps && r.y0 < o.y1 - eps && r.y1 > o.y0 + eps,
     );
