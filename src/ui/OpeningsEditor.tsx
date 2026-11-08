@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import type { BuildingConfig, Catalog, Opening, OpeningType, WallId } from '../core/types';
 import { WALL_IDS } from '../core/types';
-import { headroomAt, openingCenterX, openingSize, roofProfile, wallLength, wallTopEdge, wallsPresent } from '../core/geometry';
+import { headroomAt, openingCenterX, openingSize, roofProfile, wallLength, wallTopEdge, wallsTakeOpenings } from '../core/geometry';
 import { clampOpening } from '../core/validate';
 import { newOpeningId } from '../core/catalog';
 import { money } from '../core/pricing';
@@ -50,7 +50,8 @@ export default function OpeningsEditor({
   catalog: Catalog;
   update: (patch: Partial<BuildingConfig>) => void;
 }) {
-  const present = wallsPresent(cfg);
+  // Openings are only built into fully closed walls.
+  const present = wallsTakeOpenings(cfg);
   const buildable = WALL_IDS.filter((w) => present[w]);
   const [addType, setAddType] = useState(catalog.openingTypes[0]?.id ?? '');
   const [addWall, setAddWall] = useState<WallId>(buildable[0] ?? 'front');
@@ -133,7 +134,7 @@ export default function OpeningsEditor({
                   <span className="n">{type.name}</span>
                   <span className="d">
                     {onDeadWall
-                      ? 'On an open side — not built'
+                      ? 'Wall is not fully closed — not built'
                       : type.resizable
                         ? `${width}' × ${height}' framed out`
                         : `${money(type.price)} each`}
@@ -148,7 +149,7 @@ export default function OpeningsEditor({
                 {WALL_IDS.map((w) => (
                   <option key={w} value={w} disabled={!present[w]}>
                     {WALL_LABEL[w]}
-                    {present[w] ? '' : ' (open side)'}
+                    {present[w] ? '' : ' (not closed)'}
                   </option>
                 ))}
               </select>

@@ -12,6 +12,7 @@ import type {
   OpeningType,
   RoofStyleOption,
   WallId,
+  WallKind,
 } from './types';
 import { WALL_IDS } from './types';
 import { getSupplier } from './suppliers';
@@ -34,6 +35,8 @@ export interface HoleRect {
 
 export interface WallSpec {
   id: WallId;
+  /** Closed, half, gable-only, columns or open. */
+  kind: WallKind;
   label: string;
   /** Length of the wall in feet. */
   length: number;
@@ -67,7 +70,7 @@ export interface RoofPlane {
 export type MemberKind =
   | 'leg' | 'bow' | 'base-rail' | 'eave-rail' | 'knee-brace' | 'peak-brace'
   | 'bottom-chord' | 'chord-strut' | 'hat-channel' | 'endwall-stud' | 'ladder-rung'
-  | 'jamb' | 'header' | 'sill';
+  | 'jamb' | 'header' | 'sill' | 'girt';
 
 /** One length of square tubing in the frame. */
 export interface TubeMember {
@@ -168,17 +171,47 @@ const WALL_LABELS: Record<WallId, string> = {
 };
 
 /**
- * Which walls are actually built. Read from the same two fields the price book
- * charges for — sides as a pair, each gable end on its own — so what is drawn
- * is always what is priced. A single closed end is the back one.
+ * What each wall is. `cfg.walls` is set by normalizeConfig; a raw config from
+ * before wall-by-wall choices existed is read from the book's two fields (a
+ * single closed end is the back one).
  */
-export function wallsPresent(cfg: BuildingConfig): Record<WallId, boolean> {
+export function wallKinds(cfg: BuildingConfig): Record<WallId, WallKind> {
+  if (cfg.walls) return cfg.walls;
+  const side: WallKind = cfg.sidesClosed ? 'closed' : 'open';
   return {
-    front: cfg.endsClosed >= 2,
-    back: cfg.endsClosed >= 1,
-    left: cfg.sidesClosed,
-    right: cfg.sidesClosed,
+    front: cfg.endsClosed >= 2 ? 'closed' : 'open',
+    back: cfg.endsClosed >= 1 ? 'closed' : 'open',
+    left: side,
+    right: side,
   };
+}
+
+/** Which walls carry panels (closed, half or gable). Columns are frame only. */
+export function wallsPresent(cfg: BuildingConfig): Record<WallId, boolean> {
+  const k = wallKinds(cfg);
+  const panelled = (w: WallKind) => w === 'closed' || w === 'half' || w === 'gable';
+  return { front: panelled(k.front), back: panelled(k.back), left: panelled(k.left), right: panelled(k.right) };
+}
+
+/**
+ * Which walls get their doors and windows built. Only a fully closed wall:
+ * an opening on a half wall, a gable or columns is kept but not built, the
+ * same as one on an open side.
+ */
+export function wallsTakeOpenings(cfg: BuildingConfig): Record<WallId, boolean> {
+  const k = wallKinds(cfg);
+  return { front: k.front === 'closed', back: k.back === 'closed', left: k.left === 'closed', right: k.right === 'closed' };
+}
+
+/** Top of a half wall: half the eave height, to the nearest 6". */
+export function halfWallHeight(cfg: BuildingConfig): number {
+  return Math.max(2, Math.round(cfg.eaveHeight) / 2);
+}
+
+const LEG_RANK: Record<LegStyle, number> = { single: 0, double: 1, ladder: 2 };
+/** The stronger of two leg constructions. */
+export function strongerLeg(a: LegStyle, b: LegStyle): LegStyle {
+  return LEG_RANK[a] >= LEG_RANK[b] ? a : b;
 }
 
 /** Length in feet of a given wall. */
@@ -401,14 +434,26 @@ function buildWall(
   const len = wallLength(cfg, wall);
   const half = len / 2;
   const t = catalog.rules.wallThickness;
-  const top = wallTopEdge(cfg, wall, profile);
+  const kind = wallKinds(cfg)[wall];
+  // A half wall stops flat at half the eave height; anything else follows the
+  // full top edge (the roof line on a gable end).
+  const top =
+    kind === 'half'
+      ? [{ x: -half, y: halfWallHeight(cfg) }, { x: half, y: halfWallHeight(cfg) }]
+      : wallTopEdge(cfg, wall, profile);
 
   // Outline runs counter-clockwise: along the bottom, then back along the top.
-  const outline: Pt[] = [{ x: -half, y: 0 }, { x: half, y: 0 }, ...top.slice().reverse()];
+  // A gable-only end is just the part above the eave: the top edge closed off
+  // by a straight line across at eave height.
+  const outline: Pt[] =
+    kind === 'gable'
+      ? top.map((p) => ({ ...p }))
+      : [{ x: -half, y: 0 }, { x: half, y: 0 }, ...top.slice().reverse()];
 
+  // Doors and windows are only built into a fully closed wall.
   const holes: HoleRect[] = [];
   for (const op of cfg.openings) {
-    if (op.wall !== wall) continue;
+    if (op.wall !== wall || kind !== 'closed') continue;
     const type = catalog.openingTypes.find((o) => o.id === op.catalogId);
     if (!type) continue;
     const { width, height } = openingSize(op, type);
@@ -453,6 +498,7 @@ function buildWall(
   const tops = top.map((p) => p.y);
   return {
     id: wall,
+    kind,
     label: WALL_LABELS[wall],
     length: len,
     outline,
@@ -697,7 +743,9 @@ function buildFrame(
 
     // Knee brace at 45° from the inboard leg up to the bow. An end bent with
     // its endwall closed is braced by the endwall studs instead.
-    const endClosed = isEnd && (i === 0 ? present.back : present.front);
+    // An end that is framed (anything but open) is braced by its studs.
+    const endKind = wallKinds(cfg)[i === 0 ? 'back' : 'front'];
+    const endClosed = isEnd && endKind !== 'open';
     if (!endClosed) {
       for (const side of [-1, 1] as const) {
         const face = side * (innerLegX - tube / 2);
@@ -772,20 +820,37 @@ function buildFrame(
     }
   }
 
-  // ── Endwall framing, closed ends only ────────────────────────────────────
-  // Studs evenly spaced at no more than 5' between the corner legs, top cut to
-  // the bow and broken around openings. The base rail is cut out at each door.
+  // ── Endwall and sidewall framing by wall kind ────────────────────────────
+  // Closed, half and column ends get studs evenly spaced at no more than 5'
+  // between the corner legs, top cut to the bow and broken around openings,
+  // on a base rail cut out at each door. A gable-only end is framed above the
+  // eave only: a girt across at eave height with short studs up to the bow.
+  // A half wall gets a girt along the top of its panels.
+  const kinds = wallKinds(cfg);
   const span = 2 * legX;
   const bays = Math.max(1, Math.ceil(span / FRAME_SPEC.endwallStudSpacing - 1e-6));
+  const girtX = (z: number, y: number) =>
+    members.push({ kind: 'girt', position: [0, y, z], rotation: [0, 0, 0], size: [span - tube, tube, tube] });
   for (const end of ['front', 'back'] as const) {
-    if (!present[end]) continue;
+    const kind = kinds[end];
+    if (kind === 'open') continue;
     const z = endZ[end];
     const holes = endHoles[end];
+    if (kind === 'gable') {
+      const eaveY = Math.min(bowUnderside(-legX), bowUnderside(legX)) - tube / 2;
+      girtX(z, eaveY);
+      for (let k = 1; k < bays; k++) {
+        const x = -legX + (span * k) / bays;
+        if (bowUnderside(x) - (eaveY + tube / 2) > tube) upright('endwall-stud', x, z, eaveY + tube / 2, bowUnderside(x), []);
+      }
+      continue;
+    }
     for (let k = 1; k < bays; k++) {
       const x = -legX + (span * k) / bays;
       const hit = holes.filter((h) => x > h.span[0] - tube && x < h.span[1] + tube);
       upright('endwall-stud', x, z, tube, bowUnderside(x), hit);
     }
+    if (kind === 'half') girtX(z, halfWallHeight(cfg) - tube / 2);
     const doors = holes.filter((h) => h.y0 < 0.05).map((h) => h.span);
     for (const [x0, x1] of splitRun(-legX + tube / 2, legX - tube / 2, doors, tube)) {
       members.push({
@@ -795,6 +860,10 @@ function buildFrame(
         size: [x1 - x0, tube, tube],
       });
     }
+  }
+  for (const side of [-1, 1] as const) {
+    if (kinds[side < 0 ? 'left' : 'right'] !== 'half') continue;
+    alongZ('girt', side * legX, halfWallHeight(cfg) - tube / 2, zFrom, zTo);
   }
 
   // ── Frame-outs ───────────────────────────────────────────────────────────
@@ -872,7 +941,8 @@ export function buildGeometry(cfg: BuildingConfig, catalog: Catalog): BuildingGe
   const build = catalog.roofBuilds.find((b) => b.id === cfg.roofBuild);
   const rounded = build?.rounded ?? false;
   const tube = catalog.gauges.find((g) => g.id === cfg.gaugeId)?.tubeSize ?? catalog.rules.tubeSize;
-  const legStyle = getSupplier(cfg.supplierId).legStyleFor(cfg.width, cfg.eaveHeight);
+  // The book sets the minimum for the height; the customer may pick stronger.
+  const legStyle = strongerLeg(getSupplier(cfg.supplierId).legStyleFor(cfg.width, cfg.eaveHeight), cfg.legChoice ?? 'single');
 
   const baseProfile = roofProfile(cfg, style);
   const radius = catalog.rules.eaveRoundRadius;

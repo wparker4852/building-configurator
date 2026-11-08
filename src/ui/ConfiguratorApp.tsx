@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Audience, BuildingConfig, Catalog } from '../core/types';
 import { buildGeometry } from '../core/geometry';
-import { monthlyPayment, money, priceBuilding } from '../core/pricing';
+import { money, priceBuilding } from '../core/pricing';
 import { normalizeConfig } from '../core/validate';
 import { defaultConfigFor } from '../core/catalog';
 import { readConfigFromUrl, shareLinkFor, writeConfigToUrl } from '../core/serialize';
@@ -18,6 +18,7 @@ import QuoteDialog from './QuoteDialog';
 import { BRAND } from './brand';
 import { buildQuoteHtml, openQuoteDocument, quoteNumber, type Lead } from './quoteDoc';
 
+/** Camera presets, kept for the internal view (they expose geometry bugs). */
 const VIEWS: { id: ViewPreset; label: string }[] = [
   { id: 'iso', label: 'Corner' },
   { id: 'front', label: 'Front' },
@@ -26,7 +27,8 @@ const VIEWS: { id: ViewPreset; label: string }[] = [
   { id: 'top', label: 'Top' },
 ];
 
-const FEEDBACK_URL: string | undefined = import.meta.env.VITE_FEEDBACK_URL;
+/** How many changes Undo can step back through. */
+const HISTORY = 60;
 
 /** Notify a host page when the widget is running inside an iframe. */
 function postToHost(message: Record<string, unknown>) {
@@ -37,6 +39,67 @@ function postToHost(message: Record<string, unknown>) {
     // Cross-origin parents that reject messages are not an error here.
   }
 }
+
+// ── Toolbar icons (inline, 20px, currentColor) ───────────────────────────────
+
+const Icon = {
+  undo: (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 14 4 9l5-5" />
+      <path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" />
+    </svg>
+  ),
+  redo: (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="m15 14 5-5-5-5" />
+      <path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13" />
+    </svg>
+  ),
+  // Tape measure: dimensions on/off.
+  measure: (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="9" cy="12" r="6" />
+      <circle cx="9" cy="12" r="1.6" />
+      <path d="M9 18h12v-3M17 18v-2M13 18v-2" />
+    </svg>
+  ),
+  // Bents: the bare frame on/off.
+  frame: (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 20V9l4-3 4 3v11M12 20V9l4-3 4 3v11" />
+      <path d="M3 20h18" />
+    </svg>
+  ),
+  // Broom: clear doors, windows and floor-plan items.
+  broom: (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="m19 3-7.5 7.5" />
+      <path d="M9.5 9.5 14.5 14.5 11 21H4.5c0-3.5 1.5-8 5-11.5Z" />
+      <path d="M7 21c.5-2 1.5-4 3-5.5M10 21c.4-1.4 1-2.6 2-3.6" />
+    </svg>
+  ),
+  head: (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 18.5V16a6 6 0 1 1 9.6 4.8" />
+      <path d="M15.5 21v-2.5h2.2a1.3 1.3 0 0 0 1.3-1.3V15l1.5-.6-1.5-3" />
+      <path d="M2 9.5 4 11 2 12.5M22 9.5" />
+    </svg>
+  ),
+  layers: (
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round">
+      <path d="M12 3 21 8l-9 5-9-5 9-5Z" />
+      <path d="m3 12.5 9 5 9-5M3 16.5l9 5 9-5" />
+    </svg>
+  ),
+  // Standing inside: the walk-in view.
+  inside: (
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 11 12 4l9 7v9H3v-9Z" />
+      <circle cx="12" cy="11" r="1.6" />
+      <path d="M12 13v4M10 20l2-3 2 3M9.5 15h5" />
+    </svg>
+  ),
+};
 
 export default function ConfiguratorApp({
   catalog,
@@ -60,6 +123,20 @@ export default function ConfiguratorApp({
     const seed = fromUrl ?? defaultConfigFor(startModel, catalog);
     return normalizeConfig(seed, catalog);
   });
+  // Undo/redo: snapshots of the design before each change. Held in refs (not
+  // state updaters) so a change is recorded exactly once; the counter only
+  // re-renders the toolbar.
+  const cfgRef = useRef(cfg);
+  cfgRef.current = cfg;
+  const past = useRef<BuildingConfig[]>([]);
+  const future = useRef<BuildingConfig[]>([]);
+  const [, setHistoryTick] = useState(0);
+  const commit = useCallback((next: BuildingConfig) => {
+    cfgRef.current = next;
+    setCfg(next);
+    setHistoryTick((t) => t + 1);
+  }, []);
+
   const [view, setView] = useState<CameraView>({ preset: 'iso', nonce: 0 });
   /** Orbit outside, stand inside, or look down on the floor plan. */
   const [mode, setMode] = useState<'3d' | 'inside' | '2d'>('3d');
@@ -101,7 +178,6 @@ export default function ConfiguratorApp({
 
   const geo = useMemo(() => buildGeometry(cfg, catalog), [cfg, catalog]);
   const quote = useMemo(() => priceBuilding(cfg, catalog, geo), [cfg, catalog, geo]);
-  const monthly = monthlyPayment(catalog, quote.total);
 
   // Keep the URL in step with the design so a refresh or a copied link works.
   useEffect(() => {
@@ -120,24 +196,54 @@ export default function ConfiguratorApp({
   }, [toast]);
 
   const update = useCallback(
-    (patch: Partial<BuildingConfig>) => setCfg((prev) => normalizeConfig({ ...prev, ...patch }, catalog)),
-    [catalog],
+    (patch: Partial<BuildingConfig>) => {
+      const prev = cfgRef.current;
+      past.current = [...past.current.slice(-(HISTORY - 1)), prev];
+      future.current = [];
+      commit(normalizeConfig({ ...prev, ...patch }, catalog));
+    },
+    [catalog, commit],
   );
 
-  const setModel = useCallback(
-    (modelId: string) => setCfg(normalizeConfig(defaultConfigFor(modelId, catalog), catalog)),
-    [catalog],
-  );
+  const undo = useCallback(() => {
+    const prev = past.current[past.current.length - 1];
+    if (!prev) return;
+    past.current = past.current.slice(0, -1);
+    future.current = [cfgRef.current, ...future.current].slice(0, HISTORY);
+    commit(prev);
+  }, [commit]);
+  const redo = useCallback(() => {
+    const next = future.current[0];
+    if (!next) return;
+    future.current = future.current.slice(1);
+    past.current = [...past.current.slice(-(HISTORY - 1)), cfgRef.current];
+    commit(next);
+  }, [commit]);
+  // Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z (or Ctrl+Y), except while typing.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+      if (!(e.ctrlKey || e.metaKey)) return;
+      const k = e.key.toLowerCase();
+      if (k === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+      } else if ((k === 'z' && e.shiftKey) || k === 'y') {
+        e.preventDefault();
+        redo();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [undo, redo]);
 
-  const share = useCallback(async () => {
-    const link = shareLinkFor(cfg);
-    try {
-      await navigator.clipboard.writeText(link);
-      setToast('Design link copied to your clipboard');
-    } catch {
-      window.prompt('Copy this link to save or share your design:', link);
-    }
-  }, [cfg]);
+  const clearItems = useCallback(() => {
+    const count = cfg.openings.length + (cfg.planItems?.length ?? 0);
+    if (!count) return;
+    if (!window.confirm('Remove all doors, windows and floor-plan items? You can undo this.')) return;
+    update({ openings: [], planItems: [] });
+  }, [cfg.openings.length, cfg.planItems, update]);
 
   const submitQuote = useCallback(
     (lead: Lead) => {
@@ -184,8 +290,6 @@ export default function ConfiguratorApp({
     [cfg, catalog, geo, quote, audience],
   );
 
-  const model = catalog.models.find((m) => m.id === cfg.modelId);
-
   // What the legs are at this size, and from what height the book upgrades them.
   const supplier = getSupplier(cfg.supplierId);
   const upgradeFrom = supplier.legHeightsFor(cfg.width).find((h) => supplier.legStyleFor(cfg.width, h) !== 'single');
@@ -198,6 +302,19 @@ export default function ConfiguratorApp({
           ? `Single legs · ${supplier.name} doubles them from ${upgradeFrom}'`
           : 'Single legs';
 
+  const toolButton = (label: string, icon: React.ReactNode, onClick: () => void, opts: { pressed?: boolean; disabled?: boolean } = {}) => (
+    <button
+      className="tool"
+      title={label}
+      aria-label={label}
+      aria-pressed={opts.pressed}
+      disabled={opts.disabled}
+      onClick={onClick}
+    >
+      {icon}
+    </button>
+  );
+
   return (
     <div className={`app${embed ? ' embed' : ''}`}>
       <header className="topbar">
@@ -207,20 +324,7 @@ export default function ConfiguratorApp({
           <span className="product">{catalog.branding.productName}</span>
         </div>
         <div className="spacer" />
-        <span className="badge">{model?.name}</span>
         {audience === 'internal' && <span className="badge internal">Internal</span>}
-        {/* Test builds only: the deploy sets VITE_FEEDBACK_URL to a GitHub issue form. */}
-        {FEEDBACK_URL && (
-          <a
-            className="btn sm"
-            style={{ textDecoration: 'none' }}
-            href={`${FEEDBACK_URL}&link=${encodeURIComponent(shareLinkFor(cfg))}`}
-            target="_blank"
-            rel="noreferrer"
-          >
-            Feedback
-          </a>
-        )}
         {onOpenAdmin && (
           <button className="btn sm ghost" onClick={onOpenAdmin}>
             Admin
@@ -229,39 +333,27 @@ export default function ConfiguratorApp({
       </header>
 
       <div className="layout">
-        <OptionPanel
-          cfg={cfg}
-          catalog={catalog}
-          geo={geo}
-          audience={audience}
-          update={update}
-          setModel={setModel}
-        />
+        <OptionPanel cfg={cfg} catalog={catalog} geo={geo} audience={audience} update={update} />
 
         <div className="stage">
-          <div className="stage-tools">
-            <div className="mode-pill" role="group" aria-label="View">
-              {(
-                [
-                  ['inside', 'Inside'],
-                  ['3d', '3D'],
-                  ['2d', '2D plan'],
-                ] as const
-              ).map(([id, label]) => (
-                <button
-                  key={id}
-                  aria-pressed={mode === id}
-                  onClick={() => {
-                    setMode(id);
-                    if (id === '3d' && mode === 'inside') setView((s) => ({ preset: 'iso', nonce: s.nonce + 1 }));
-                  }}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            {mode === '3d' &&
-              VIEWS.map((v) => (
+          {/* Top left: edit history and what the view shows. */}
+          <div className="toolbar" role="toolbar" aria-label="Design tools">
+            {toolButton('Undo (Ctrl+Z)', Icon.undo, undo, { disabled: !past.current.length })}
+            {toolButton('Redo (Ctrl+Shift+Z)', Icon.redo, redo, { disabled: !future.current.length })}
+            <span className="tool-sep" />
+            {toolButton('Dimensions', Icon.measure, () => setLayers((l) => ({ ...l, dimensions: !l.dimensions })), {
+              pressed: layers.dimensions,
+            })}
+            {toolButton('Frame only', Icon.frame, () => setFrameOnly((s) => !s), { pressed: frameOnly })}
+            {toolButton('Clear doors, windows & items', Icon.broom, clearItems, {
+              disabled: !cfg.openings.length && !cfg.planItems?.length,
+            })}
+          </div>
+
+          {/* Camera presets: internal only, for checking geometry. */}
+          {audience === 'internal' && mode === '3d' && (
+            <div className="stage-tools right">
+              {VIEWS.map((v) => (
                 <button
                   key={v.id}
                   className="chip"
@@ -271,52 +363,19 @@ export default function ConfiguratorApp({
                   {v.label}
                 </button>
               ))}
-          </div>
-          {mode !== '2d' && (
-            <div className="stage-tools right">
-              <button className="chip" aria-pressed={frameOnly} onClick={() => setFrameOnly((s) => !s)}>
-                Frame only
-              </button>
+            </div>
+          )}
+
+          {/* Bottom left: head tracking, layers, and the Inside / 3D / 2D switch. */}
+          <div className="dock">
+            {mode !== '2d' && (
               <div className="pop-wrap">
-                <button className="chip" aria-pressed={layersOpen} onClick={() => setLayersOpen((o) => !o)}>
-                  Layers
-                </button>
-                {layersOpen && (
-                  <div className="popover" onMouseLeave={() => setLayersOpen(false)}>
-                    {(
-                      [
-                        ['dimensions', 'Dimensions'],
-                        ['orientation', 'Orientation labels'],
-                        ['equipment', 'Vehicles & equipment'],
-                        ['scenery', 'Sky & grass'],
-                      ] as const
-                    ).map(([k, label]) => (
-                      <label key={k} className="check">
-                        <input
-                          type="checkbox"
-                          checked={layers[k]}
-                          onChange={(e) => setLayers((l) => ({ ...l, [k]: e.target.checked }))}
-                        />
-                        {label}
-                      </label>
-                    ))}
-                  </div>
-                )}
-              </div>
-              <div className="pop-wrap">
-                <button
-                  className="chip"
-                  aria-pressed={tracking === 'on'}
-                  onClick={() => setHeadOpen((o) => !o)}
-                  title="Steer the view by moving your head, using your webcam"
-                >
-                  Head tracking
-                </button>
+                {toolButton('Head tracking', Icon.head, () => setHeadOpen((o) => !o), { pressed: tracking === 'on' || headOpen })}
                 {headOpen && (
-                  <div className="popover">
+                  <div className="popover up">
                     <div className="ht-status">
                       <span className={`dot ${tracking}`} />
-                      {tracking === 'on' ? 'Tracking' : tracking === 'starting' ? 'Starting camera…' : 'Off'}
+                      {tracking === 'on' ? 'Tracking' : tracking === 'starting' ? 'Starting camera…' : 'Head tracking off'}
                     </div>
                     <div style={{ display: 'flex', gap: 6 }}>
                       <button className="btn sm primary" disabled={tracking !== 'off'} onClick={startTracking}>
@@ -344,8 +403,52 @@ export default function ConfiguratorApp({
                   </div>
                 )}
               </div>
+            )}
+            {mode !== '2d' && (
+              <div className="pop-wrap">
+                {toolButton('Layers', Icon.layers, () => setLayersOpen((o) => !o), { pressed: layersOpen })}
+                {layersOpen && (
+                  <div className="popover up" onMouseLeave={() => setLayersOpen(false)}>
+                    {(
+                      [
+                        ['dimensions', 'Dimensions'],
+                        ['orientation', 'Orientation labels'],
+                        ['equipment', 'Vehicles & equipment'],
+                        ['scenery', 'Sky & grass'],
+                      ] as const
+                    ).map(([k, label]) => (
+                      <label key={k} className="check">
+                        <input
+                          type="checkbox"
+                          checked={layers[k]}
+                          onChange={(e) => setLayers((l) => ({ ...l, [k]: e.target.checked }))}
+                        />
+                        {label}
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            <div className="mode-switch" role="group" aria-label="View">
+              <button aria-pressed={mode === 'inside'} title="Inside view" aria-label="Inside view" onClick={() => setMode('inside')}>
+                {Icon.inside}
+              </button>
+              <button
+                aria-pressed={mode === '3d'}
+                onClick={() => {
+                  if (mode === 'inside') setView((s) => ({ preset: 'iso', nonce: s.nonce + 1 }));
+                  setMode('3d');
+                }}
+              >
+                3D
+              </button>
+              <button aria-pressed={mode === '2d'} onClick={() => setMode('2d')}>
+                2D
+              </button>
             </div>
-          )}
+          </div>
+
           <Scene
             cfg={cfg}
             catalog={catalog}
@@ -372,8 +475,6 @@ export default function ConfiguratorApp({
           quote={quote}
           audience={audience}
           onRequestQuote={() => setQuoteOpen(true)}
-          onShare={share}
-          shareLabel="Save & share design"
         />
 
         {/* Phones only: the total and the main action stay in reach while the
@@ -382,7 +483,6 @@ export default function ConfiguratorApp({
           <div className="grow">
             <div className="t">{money(quote.total)}</div>
             <div className="s">
-              {monthly > 0 && <>from {money(monthly)}/mo &middot; </>}
               <button onClick={() => document.getElementById('price-details')?.scrollIntoView({ behavior: 'smooth' })}>
                 See details
               </button>

@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "branding": {
     "productName": "3D Building Designer",
     "companyName": "Walker Buildings",
@@ -396,7 +396,7 @@
   "roofings": [
     {
       "id": "rf-ribbed-29",
-      "name": "29ga Ribbed Steel",
+      "name": "29 Gauge AG Panel",
       "kind": "roofing",
       "texture": "ribbed",
       "pricePerSqFt": 2.75,
@@ -404,7 +404,7 @@
     },
     {
       "id": "rf-ribbed-26",
-      "name": "26ga Ribbed Steel",
+      "name": "26 Gauge AG Panel",
       "kind": "roofing",
       "texture": "ribbed",
       "pricePerSqFt": 3.85,
@@ -412,19 +412,11 @@
     },
     {
       "id": "rf-standing-seam",
-      "name": "Standing Seam Metal",
+      "name": "26 Gauge Standing Seam",
       "kind": "roofing",
       "texture": "ribbed",
       "pricePerSqFt": 7.25,
       "tileHeight": 2
-    },
-    {
-      "id": "rf-shingle",
-      "name": "Architectural Shingles",
-      "kind": "roofing",
-      "texture": "shingle",
-      "pricePerSqFt": 4.5,
-      "tileHeight": 2.5
     }
   ],
   "colors": [
@@ -886,11 +878,19 @@
     },
     {
       "id": "gutters",
-      "name": "Gutters & Downspouts",
-      "description": "Seamless gutters on both eave sides.",
+      "name": "4\" Seamless Gutters & Downspouts",
+      "description": "4\" seamless aluminum gutters along the eaves with downspouts.",
       "category": "Exterior",
       "basis": "perimeter",
       "price": 6.25
+    },
+    {
+      "id": "gutters-6",
+      "name": "6\" Seamless Gutters & Downspouts",
+      "description": "6\" seamless aluminum gutters along the eaves with downspouts.",
+      "category": "Exterior",
+      "basis": "perimeter",
+      "price": 8.5
     },
     {
       "id": "wainscot",

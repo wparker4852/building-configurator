@@ -2,7 +2,7 @@
 
 import type { Audience, BuildingConfig, Catalog, Quote } from '../core/types';
 import type { BuildingGeometry } from '../core/geometry';
-import { money, monthlyPayment, taxRateFor } from '../core/pricing';
+import { money, taxRateFor } from '../core/pricing';
 import { findIssues } from '../core/validate';
 import { feetInches } from '../core/format';
 
@@ -19,8 +19,6 @@ export default function PriceSummary({
   quote,
   audience,
   onRequestQuote,
-  onShare,
-  shareLabel,
 }: {
   cfg: BuildingConfig;
   catalog: Catalog;
@@ -28,10 +26,7 @@ export default function PriceSummary({
   quote: Quote;
   audience: Audience;
   onRequestQuote: () => void;
-  onShare: () => void;
-  shareLabel: string;
 }) {
-  const monthly = monthlyPayment(catalog, quote.total);
   const issues = findIssues(cfg, catalog);
   const internal = audience === 'internal';
 
@@ -42,7 +37,6 @@ export default function PriceSummary({
         <div className="price-total">{money(quote.total)}</div>
         <div className="price-sub">
           Delivered &amp; installed, tax included
-          {monthly > 0 && <> &middot; from {money(monthly)}/mo</>}
         </div>
       </div>
 
@@ -141,10 +135,7 @@ export default function PriceSummary({
           </div>
         )}
         <div className="line">
-          <span className="grow">
-            Delivery &amp; install
-            <span className="d">Estimated {catalog.rules.freight.defaultMiles} mi from the plant</span>
-          </span>
+          <span className="grow">Delivery &amp; install</span>
           <span className="v">{money(quote.freight)}</span>
         </div>
         <div className="line">
@@ -160,9 +151,6 @@ export default function PriceSummary({
       <div className="cta">
         <button className="btn primary" onClick={onRequestQuote}>
           {internal ? 'Build quote sheet' : 'Request my quote'}
-        </button>
-        <button className="btn" onClick={onShare}>
-          {shareLabel}
         </button>
       </div>
     </div>

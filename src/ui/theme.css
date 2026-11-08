@@ -536,7 +536,7 @@ table.grid .num { text-align: right; font-variant-numeric: tabular-nums; }
 
 .plan { position: absolute; inset: 0; z-index: 4; background: #f4f4f4; overflow: hidden; }
 .plan canvas { display: block; }
-.plan-tools { position: absolute; top: 52px; left: 12px; z-index: 6; }
+.plan-tools { position: absolute; top: 64px; left: 12px; z-index: 6; }
 .plan-palette {
   margin-top: 6px;
   background: var(--bg);
@@ -567,7 +567,8 @@ table.grid .num { text-align: right; font-variant-numeric: tabular-nums; }
 .plan-palette-item .d { display: block; font-size: 10.5px; color: var(--text-3); }
 .plan-status {
   position: absolute;
-  left: 12px;
+  /* Clear of the view switch in the bottom-left dock. */
+  left: 140px;
   right: 12px;
   bottom: 10px;
   display: flex;
@@ -745,3 +746,182 @@ table.grid .num { text-align: right; font-variant-numeric: tabular-nums; }
 @media (max-width: 760px) { .add-part { grid-template-columns: 1fr; } }
 .stage-hint.frame-note { bottom: 46px; background: rgba(17, 20, 24, 0.82); }
 .plan-edit { width: 300px; }
+
+/* ── Walker panel layout: section bars, radios, colour pickers ─────────────── */
+
+.acc { border-bottom: 1px solid var(--bg); }
+.acc-head {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  border: none;
+  background: var(--accent);
+  color: var(--accent-ink);
+  padding: 5px 10px;
+  min-height: 30px;
+  position: relative;
+}
+.acc-head:hover { filter: brightness(1.04); }
+.acc-box {
+  width: 15px;
+  height: 15px;
+  border: 1.5px solid currentColor;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  line-height: 1;
+  font-weight: 700;
+  flex: none;
+}
+.acc-title {
+  position: absolute;
+  left: 34px;
+  right: 34px;
+  text-align: center;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 12.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.acc-body { padding: 14px 18px 18px; display: flex; flex-direction: column; gap: 14px; }
+.acc.sub .acc-head { background: #b0b0b0; color: #000; min-height: 26px; }
+.acc.sub .acc-title { font-size: 11.5px; text-transform: none; letter-spacing: 0.02em; }
+.acc.sub .acc-body { padding: 10px 6px 12px; }
+.acc .acc { margin: 0 -18px; }
+.acc .acc:first-child { margin-top: -14px; }
+
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 14px; align-items: start; }
+
+.radios { border: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.radios legend { margin-bottom: 4px; padding: 0; }
+.radio { display: flex; align-items: center; gap: 7px; font-size: 13px; cursor: pointer; }
+.radio input { accent-color: #000; margin: 0; width: 14px; height: 14px; flex: none; }
+.radio.disabled { color: var(--text-3); cursor: not-allowed; }
+
+select.narrow { max-width: 150px; }
+
+.check-row { display: flex; align-items: flex-start; gap: 10px; }
+.check-row .check { flex: 1; align-items: flex-start; }
+.check-row .check input { margin-top: 2px; }
+.check-row .n { display: block; font-size: 13px; }
+.check-row .d { display: block; font-size: 11px; color: var(--text-3); line-height: 1.35; }
+.check-row .p { font-size: 12px; color: var(--text-2); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+.color-picker { position: relative; }
+.cp-button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  border: 1px solid var(--border-2);
+  border-radius: 6px;
+  background: var(--bg);
+  padding: 9px 12px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  text-align: left;
+}
+.cp-icon { color: var(--text-2); flex: none; }
+.cp-label { flex: 1; font-size: 13px; text-align: center; }
+.cp-name { font-size: 11.5px; color: var(--text-3); }
+.cp-dot { width: 16px; height: 16px; border-radius: 50%; border: 1px solid rgba(0, 0, 0, 0.25); flex: none; }
+.cp-caret { font-size: 11px; color: var(--text-2); }
+.cp-pop {
+  margin-top: 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  background: var(--bg);
+  box-shadow: var(--shadow);
+}
+
+.wall-grid { display: grid; gap: 6px; padding-left: 22px; }
+.wall-row { display: grid; grid-template-columns: 60px 1fr; align-items: center; gap: 10px; font-size: 13px; }
+.wall-row select { padding: 4px 8px; }
+
+.soon { margin: 0; font-size: 12.5px; color: var(--text-2); }
+
+/* ── Viewport: top-left toolbar, bottom-left dock ──────────────────────────── */
+
+.toolbar {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1.5px solid #000;
+  border-radius: 4px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+}
+.tool {
+  width: 36px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #000;
+}
+.tool:hover:not(:disabled) { background: var(--bg-3); }
+.tool:disabled { color: var(--border-2); cursor: default; }
+.tool[aria-pressed='true'] { background: var(--accent); color: var(--accent-ink); }
+.tool-sep { width: 1px; height: 22px; background: var(--border); margin: 0 3px; }
+
+.dock {
+  position: absolute;
+  left: 14px;
+  bottom: 14px;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+.dock .tool {
+  width: 38px;
+  height: 38px;
+  background: #1c1f24;
+  color: #fff;
+  border-radius: 9px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+}
+.dock .tool:hover { background: #2b2f36; }
+.dock .tool[aria-pressed='true'] { background: var(--accent); color: var(--accent-ink); }
+.mode-switch {
+  display: flex;
+  align-items: center;
+  background: #1c1f24;
+  border-radius: 999px;
+  padding: 3px;
+  gap: 2px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+}
+.mode-switch button {
+  border: none;
+  background: transparent;
+  color: #c9c9c9;
+  font-size: 12px;
+  font-weight: 700;
+  min-width: 34px;
+  height: 28px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+}
+.mode-switch button[aria-pressed='true'] { background: var(--accent); color: var(--accent-ink); }
+.popover.up { top: auto; bottom: 0; left: calc(100% + 8px); right: auto; }
+
+@media (max-width: 760px) {
+  .row2 { grid-template-columns: 1fr 1fr; }
+  .toolbar { top: 8px; left: 8px; }
+  .dock { left: 8px; bottom: 8px; }
+}

@@ -41,6 +41,8 @@ interface Skin {
   roofColor: ColorOption;
   trimColor: ColorOption;
   wainscotColor: ColorOption | null;
+  wainscotHorizontal: boolean;
+  gutterColor: ColorOption;
   /** True when wall panels run horizontally. */
   sidingHorizontal: boolean;
   /** True when roof panels run lengthwise rather than ridge-to-eave. */
@@ -58,12 +60,14 @@ function useSkin(cfg: BuildingConfig, catalog: Catalog): Skin {
       roofColor: color(cfg.roofColorId),
       trimColor: color(cfg.trimColorId),
       wainscotColor: cfg.wainscotColorId ? color(cfg.wainscotColorId) : null,
+      wainscotHorizontal: cfg.wainscotOrientation !== 'vertical',
+      gutterColor: color(cfg.gutterColorId ?? cfg.trimColorId),
       sidingHorizontal: cfg.sidingOrientation !== 'vertical',
       roofHorizontal: (build?.panels ?? 'vertical') === 'horizontal',
     };
   }, [
     cfg.sidingId, cfg.roofingId, cfg.sidingColorId, cfg.roofColorId, cfg.trimColorId,
-    cfg.wainscotColorId, cfg.sidingOrientation, cfg.roofBuild, catalog,
+    cfg.wainscotColorId, cfg.sidingOrientation, cfg.roofBuild, cfg.wainscotOrientation, cfg.gutterColorId, catalog,
   ]);
 }
 
@@ -201,8 +205,9 @@ function OpeningMesh({
  * extrusion clipped to the wainscot height so that doors and windows punch
  * through it exactly as they do the wall behind.
  */
-function Wainscot({ wall, catalog, color }: { wall: WallSpec; catalog: Catalog; color: ColorOption }) {
-  const height = catalog.rules.wainscotHeight;
+function Wainscot({ wall, catalog, color, horizontal }: { wall: WallSpec; catalog: Catalog; color: ColorOption; horizontal: boolean }) {
+  // On a half wall the band cannot run past the top of the panels.
+  const height = Math.min(catalog.rules.wainscotHeight, wall.minHeight - 0.25);
   const t = catalog.rules.wallThickness;
   const half = wall.length / 2;
 
@@ -227,7 +232,7 @@ function Wainscot({ wall, catalog, color }: { wall: WallSpec; catalog: Catalog; 
     return new THREE.ExtrudeGeometry(shape, { depth: 0.04, bevelEnabled: false, curveSegments: 1 });
   }, [half, height, JSON.stringify(wall.holes.map((h) => [h.x0, h.x1, h.y0, h.y1]))]);
 
-  const { map, normalMap } = usePanelMaps('ribbed', color, 1 / 3, 1 / 3, true);
+  const { map, normalMap } = usePanelMaps('ribbed', color, 1 / 3, 1 / 3, horizontal);
 
   return (
     <mesh geometry={geometry} position={[0, 0, t]} castShadow receiveShadow>
@@ -347,7 +352,8 @@ function Wall({
           />
         </mesh>
       )}
-      <BaseTrim wall={wall} thickness={t} trim={skin.trimColor} />
+      {/* A gable-only end starts at the eave: no base trim or wainscot. */}
+      {wall.kind !== 'gable' && <BaseTrim wall={wall} thickness={t} trim={skin.trimColor} />}
       <mesh geometry={geometry} castShadow receiveShadow>
         {/* Group 0 is the front/back faces, group 1 the extruded edges. */}
         <meshStandardMaterial
@@ -366,7 +372,9 @@ function Wall({
           metalness={(skin.trimColor.metallic ?? 0.25) * 0.5}
         />
       </mesh>
-      {skin.wainscotColor && <Wainscot wall={wall} catalog={catalog} color={skin.wainscotColor} />}
+      {skin.wainscotColor && wall.kind !== 'gable' && (
+        <Wainscot wall={wall} catalog={catalog} color={skin.wainscotColor} horizontal={skin.wainscotHorizontal} />
+      )}
       {wall.holes.map((hole) => (
         <OpeningMesh
           key={hole.opening.id}
@@ -555,30 +563,103 @@ function Frame({ members }: { members: BuildingGeometry['frame'] }) {
 }
 
 function CornerTrim({ cfg, geo, skin }: { cfg: BuildingConfig; geo: BuildingGeometry; skin: Skin }) {
-  const present = Object.fromEntries(geo.walls.map((w) => [w.id, w.present]));
+  const byId = Object.fromEntries(geo.walls.map((w) => [w.id, w]));
   const halfW = cfg.width / 2;
   const halfL = cfg.length / 2;
-  const leftH = geo.eaves.left;
-  const rightH = geo.eaves.right;
   const rough = roughnessFor(skin.trimColor.metallic ?? 0.25);
 
-  const corners: { x: number; z: number; h: number; walls: [string, string] }[] = [
-    { x: -halfW, z: halfL, h: leftH, walls: ['left', 'front'] },
-    { x: halfW, z: halfL, h: rightH, walls: ['right', 'front'] },
-    { x: -halfW, z: -halfL, h: leftH, walls: ['left', 'back'] },
-    { x: halfW, z: -halfL, h: rightH, walls: ['right', 'back'] },
+  // Trim a corner where two panelled walls meet below the eave, up to the
+  // lower of the two (a half wall stops short). A gable-only end has no corner.
+  const pairs: { x: number; z: number; side: string; end: string }[] = [
+    { x: -halfW, z: halfL, side: 'left', end: 'front' },
+    { x: halfW, z: halfL, side: 'right', end: 'front' },
+    { x: -halfW, z: -halfL, side: 'left', end: 'back' },
+    { x: halfW, z: -halfL, side: 'right', end: 'back' },
   ];
+  const corners = pairs
+    .filter((c) => byId[c.side]?.present && byId[c.end]?.present && byId[c.end].kind !== 'gable')
+    .map((c) => ({ ...c, h: Math.min(byId[c.side].maxHeight, byId[c.end].minHeight) }));
 
   return (
     <group>
       {corners
-        .filter((c) => present[c.walls[0]] && present[c.walls[1]])
         .map((c, i) => (
           <mesh key={`corner-${i}`} position={[c.x - Math.sign(c.x) * 0.16, c.h / 2, c.z - Math.sign(c.z) * 0.16]} castShadow>
             <boxGeometry args={[0.34, c.h, 0.34]} />
             <meshStandardMaterial color={skin.trimColor.hex} roughness={rough} metalness={(skin.trimColor.metallic ?? 0.25) * 0.6} />
           </mesh>
         ))}
+    </group>
+  );
+}
+
+/**
+ * Seamless gutters along the eaves with a downspout at each corner. A gable
+ * has two eaves; a single slope drains to its low side only. The gutter hangs
+ * just outside the drip edge (the fascia on a squared eave, the bottom of the
+ * curl on a regular roof); each downspout elbows back to the wall and runs to
+ * the ground.
+ */
+function Gutters({ cfg, geo, color, size }: { cfg: BuildingConfig; geo: BuildingGeometry; color: ColorOption; size: '4in' | '6in' }) {
+  const w = size === '6in' ? 0.55 : 0.4;
+  const h = size === '6in' ? 0.45 : 0.35;
+  const spout = size === '6in' ? 0.33 : 0.25;
+  const runLength = cfg.length + 2 * cfg.gableOverhang;
+  const halfW = cfg.width / 2;
+  const rough = roughnessFor(color.metallic ?? 0.3);
+  const metal = (color.metallic ?? 0.3) * 0.6;
+
+  // Drip edge at each side: where water leaves the roof.
+  const edges: { dir: -1 | 1; x: number; y: number }[] = [];
+  if (geo.rounded) {
+    const a = geo.profile[0];
+    const b = geo.profile[geo.profile.length - 1];
+    edges.push({ dir: -1, x: a.x, y: a.y }, { dir: 1, x: b.x, y: b.y });
+  } else {
+    const planes = [geo.roofPlanes[0], geo.roofPlanes[geo.roofPlanes.length - 1]];
+    planes.forEach((plane, i) => {
+      if (!plane) return;
+      const dir = i === 0 ? -1 : 1;
+      const [px, py] = plane.position;
+      const ex = px + dir * Math.cos(plane.rotationZ) * (plane.slopeLength / 2);
+      const ey = py + dir * Math.sin(plane.rotationZ) * (plane.slopeLength / 2);
+      // Outside the fascia, top just under the panel edge.
+      edges.push({ dir: dir as -1 | 1, x: ex + dir * 0.08, y: ey - 0.05 });
+    });
+  }
+  // A single slope only drains one way: keep the low edge.
+  const used = geo.baseProfile.length === 2 ? [edges.reduce((lo, e) => (e.y < lo.y ? e : lo))] : edges;
+
+  return (
+    <group>
+      {used.map((e) => {
+        const gx = e.x + e.dir * (w / 2);
+        const bottom = e.y - h;
+        const elbowY = bottom - 0.35;
+        const wallX = e.dir * (halfW + spout / 2 + 0.02);
+        const pieces: { pos: [number, number, number]; size: [number, number, number] }[] = [
+          { pos: [gx, e.y - h / 2, 0], size: [w, h, runLength] },
+        ];
+        for (const s of [-1, 1]) {
+          const z = s * (cfg.length / 2 - 0.4);
+          // Drop out of the gutter, elbow back to the wall, run to grade.
+          pieces.push(
+            { pos: [gx, (bottom + elbowY) / 2, z], size: [spout, bottom - elbowY, spout] },
+            { pos: [(gx + wallX) / 2, elbowY, z], size: [Math.abs(gx - wallX) + spout, spout, spout] },
+            { pos: [wallX, elbowY / 2, z], size: [spout, elbowY, spout] },
+          );
+        }
+        return (
+          <group key={e.dir}>
+            {pieces.map((p, i) => (
+              <mesh key={i} position={p.pos} castShadow>
+                <boxGeometry args={p.size} />
+                <meshStandardMaterial color={color.hex} roughness={rough} metalness={metal} />
+              </mesh>
+            ))}
+          </group>
+        );
+      })}
     </group>
   );
 }
@@ -641,6 +722,7 @@ export default function Building({
       ))}
       <CornerTrim cfg={cfg} geo={geo} skin={skin} />
       <Roof cfg={cfg} catalog={catalog} geo={geo} skin={skin} />
+      {cfg.gutters && cfg.gutters !== 'none' && <Gutters cfg={cfg} geo={geo} color={skin.gutterColor} size={cfg.gutters} />}
     </group>
   );
 }

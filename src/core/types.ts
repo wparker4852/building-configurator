@@ -39,6 +39,21 @@ export const WALL_IDS: WallId[] = ['front', 'back', 'left', 'right'];
 export type LegStyle = 'single' | 'double' | 'ladder';
 
 /**
+ * What each wall is, from the Sides & Ends panel:
+ *   open      nothing there
+ *   closed    panelled full height
+ *   half      panelled to half the eave height
+ *   gable     only the triangle above the eave (gable ends only)
+ *   columns   framed (posts) but not panelled
+ */
+export type WallKind = 'open' | 'closed' | 'half' | 'gable' | 'columns';
+
+/** The Exterior Walls choice: none, all four closed, or set wall by wall. */
+export type ExteriorWalls = 'none' | 'enclosed' | 'custom';
+
+export type GutterSize = 'none' | '4in' | '6in';
+
+/**
  * Something parked on the 2D floor plan to check fit — a truck, a lift, a
  * workbench. Positions are in feet from the building center, +x toward the
  * right wall and +y toward the front. Not priced; it travels with the design
@@ -142,6 +157,18 @@ export interface BuildingConfig {
   state?: string;
   /** Vehicles and equipment laid out on the 2D floor plan. */
   planItems?: PlanItem[];
+  /**
+   * Wall by wall. The source of truth for which walls are built; the book's
+   * `sidesClosed`/`endsClosed` are derived from it in normalizeConfig.
+   */
+  exteriorWalls?: ExteriorWalls;
+  walls?: Record<WallId, WallKind>;
+  /** The customer's leg pick; the book's minimum for the height still applies. */
+  legChoice?: LegStyle;
+  gutters?: GutterSize;
+  gutterColorId?: string;
+  /** Which way the wainscot panels run. */
+  wainscotOrientation?: PanelOrientation;
 }
 
 // ── Catalog ──────────────────────────────────────────────────────────────────

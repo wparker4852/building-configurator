@@ -3,8 +3,9 @@
 // Every charge is an explicit line item so the same result can drive the
 // customer price summary, the internal margin view, and a printed quote.
 
-import type { AddOn, BuildingConfig, Catalog, LineItem, Quote } from './types';
+import type { AddOn, BuildingConfig, Catalog, LineItem, Quote, WallKind } from './types';
 import type { BuildingGeometry } from './geometry';
+import { strongerLeg, wallKinds } from './geometry';
 import { getSupplier, type CostLine } from './suppliers';
 import { pricedComponents } from './componentPricing';
 
@@ -116,6 +117,23 @@ export function priceBuilding(cfg: BuildingConfig, catalog: Catalog, geo: Buildi
 
   const lines: LineItem[] = book.lines.map((l) => fromCost(catalog, l));
   const unpriced = [...book.unpriced];
+
+  // ── Walls and legs the book does not print ─────────────────────────────────
+  // The book prices the sides only as a closed pair and each end only as
+  // closed. Anything else chosen wall by wall is stated, never estimated.
+  const k = wallKinds(cfg);
+  const kindName: Record<WallKind, string> = { open: 'open', closed: 'closed', half: 'half wall', gable: 'gable only', columns: 'columns' };
+  if ((k.left === 'closed') !== (k.right === 'closed')) {
+    unpriced.push(`only the ${k.left === 'closed' ? 'left' : 'right'} side closed — sides are priced as a pair`);
+  }
+  for (const w of ['left', 'right', 'front', 'back'] as const) {
+    if (k[w] === 'half' || k[w] === 'gable' || k[w] === 'columns') unpriced.push(`${w} wall as ${kindName[k[w]]}`);
+  }
+  const bookLeg = supplier.legStyleFor(cfg.width, cfg.eaveHeight);
+  const chosenLeg = cfg.legChoice ?? 'single';
+  if (strongerLeg(bookLeg, chosenLeg) !== bookLeg) {
+    unpriced.push(`${chosenLeg} legs at ${cfg.eaveHeight}' (${supplier.name} prints ${bookLeg} legs at this height)`);
+  }
 
   // ── Foundation ─────────────────────────────────────────────────────────────
   if (floor && floor.pricePerSqFt > 0) {

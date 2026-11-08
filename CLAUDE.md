@@ -113,6 +113,28 @@ Fixed along the way: `wallsPresent()` read the legacy `enclosure` field, so wall
 walls charged could disagree (e.g. sides open + one end closed drew both sides). It now reads
 `sidesClosed`/`endsClosed`, same as the book.
 
+### Panel layout (partner's "3d builder layout punch v1", 2026-11-08)
+
+The left panel is yellow accordion sections in the partner's order (Building Frame, Roof, Sides &
+Ends, Lean-Tos, Colors, Interior with grey sub-sections, Doors & Windows, Wings, Foundation,
+Permitting, Tax/Delivery/Install). Lean-Tos, Wings, Divider Walls, Wheel Stops and Wall Panels
+are "coming soon" placeholders. Choices the book doesn't print are shown disabled, not hidden.
+
+- **Walls are chosen wall by wall** (: open / closed / half / gable / columns,
+   none / enclosed / custom).  derives the book's
+  / from them; anything the book can't price (one side, half walls,
+  gable-only, columns) is listed as unpriced. Doors/windows are only built into **closed** walls
+  (); on any other wall they are kept but not built.
+- **Support Leg Depth** () can go stronger than the book's minimum, never weaker;
+  an upgrade over the book is unpriced.
+- **Roof Overhang** 6" / 1' / 2' drives both the priced  and the drawn overhangs.
+- **Gutters** 4"/6" map to the  /  add-ons (placeholder prices) and are
+  drawn with downspouts.
+- Viewport: undo/redo (refs, not state updaters — StrictMode is on), dimensions, frame only and
+  clear in the top-left toolbar; head tracking, layers and Inside/3D/2D bottom-left. Camera
+  presets are internal-only. Model cards, Save & share, Feedback, the monthly payment and the
+  freight-miles note were removed from the customer view per the mockup.
+
 ### Next, roughly in order
 
 1. **Frameout pricing.** Doors/windows are wired; frameouts are not yet charged per opening.
@@ -168,7 +190,7 @@ derived at runtime in `App.tsx` from `catalog.branding.accent` — never put whi
 - The canvas uses `preserveDrawingBuffer` so the quote document can embed the actual render.
 - Admin catalog edits persist to `localStorage` and silently override the shipped catalog. If
   pricing looks wrong, hit **Reset** in the admin header. Overrides from an older `version` are
-  ignored, so bump `catalog.json`'s `version` whenever its shape changes (now 2).
+  ignored, so bump `catalog.json`'s `version` whenever its shape changes (now 4).
 - Canvas-painted textures parse hex by hand — `THREE.Color` converts to linear and paints
   everything too dark.
 - Orientation labels draw over everything (`depthTest: false`) and fade by facing; drawn

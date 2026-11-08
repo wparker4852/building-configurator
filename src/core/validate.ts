@@ -3,11 +3,11 @@
 // Runs on every change, on model switches, and on anything decoded from a URL,
 // so the rest of the app can assume the config it holds is buildable.
 
-import type { BuildingConfig, Catalog, Opening, PlanItem, WallId } from './types';
+import type { BuildingConfig, Catalog, LegStyle, Opening, PlanItem, WallId, WallKind } from './types';
 import { WALL_IDS } from './types';
 import { FLOOR_PLAN_ITEMS } from './floorPlan';
 import {
-  profileHeightAt, roofProfile, wallLength, wallTopEdge, headroomAt, openingCenterX, openingSize, wallsPresent,
+  profileHeightAt, roofProfile, wallLength, wallTopEdge, headroomAt, openingCenterX, openingSize, wallsTakeOpenings,
 } from './geometry';
 import { getSupplier } from './suppliers';
 
@@ -68,15 +68,45 @@ export function normalizeConfig(input: BuildingConfig, catalog: Catalog): Buildi
   );
 
   cfg.overhang = supplier.overhangsFor(cfg.width).includes(Number(cfg.overhang)) ? Number(cfg.overhang) : 0;
+  // The Roof Overhang choice drives the drawn eave: 6" standard, or the 1'/2'
+  // upgrade. Both slopes and both gables project the same.
+  cfg.eaveOverhang = cfg.overhang > 0 ? cfg.overhang : 0.5;
+  cfg.gableOverhang = cfg.eaveOverhang;
   cfg.wainscot = !!cfg.wainscot;
-  cfg.sidesClosed = !!cfg.sidesClosed;
-  cfg.endsClosed = clamp(Math.round(Number(cfg.endsClosed) || 0), 0, 2);
-  // Keep the legacy enclosure enum in step; geometry still reads it.
-  cfg.enclosure = !cfg.sidesClosed && cfg.endsClosed === 0
-    ? 'open'
-    : cfg.sidesClosed && cfg.endsClosed >= 2
-      ? 'enclosed'
-      : 'partial';
+
+  // ── Walls ────────────────────────────────────────────────────────────────
+  // Wall by wall is the source of truth. A config from before it existed (or
+  // a model default) is read from the book's two fields instead.
+  const kinds: WallKind[] = ['open', 'closed', 'half', 'gable', 'columns'];
+  if (!cfg.walls) {
+    const ends = clamp(Math.round(Number(cfg.endsClosed) || 0), 0, 2);
+    const side: WallKind = cfg.sidesClosed ? 'closed' : 'open';
+    cfg.walls = { front: ends >= 2 ? 'closed' : 'open', back: ends >= 1 ? 'closed' : 'open', left: side, right: side };
+  }
+  if (cfg.exteriorWalls === 'none') cfg.walls = { front: 'open', back: 'open', left: 'open', right: 'open' };
+  else if (cfg.exteriorWalls === 'enclosed') cfg.walls = { front: 'closed', back: 'closed', left: 'closed', right: 'closed' };
+  const walls = { ...cfg.walls };
+  for (const w of WALL_IDS) {
+    if (!kinds.includes(walls[w])) walls[w] = 'open';
+    // Only a gable end has a gable.
+    if ((w === 'left' || w === 'right') && walls[w] === 'gable') walls[w] = 'open';
+  }
+  cfg.walls = walls;
+  const all = WALL_IDS.map((w) => walls[w]);
+  if (cfg.exteriorWalls !== 'custom') {
+    cfg.exteriorWalls = all.every((k) => k === 'open') ? 'none' : all.every((k) => k === 'closed') ? 'enclosed' : 'custom';
+  }
+  // What the book can price: sides only as a closed pair, ends one by one.
+  // Anything else (one side, half walls, gables) is reported as unpriced.
+  cfg.sidesClosed = walls.left === 'closed' && walls.right === 'closed';
+  cfg.endsClosed = (walls.front === 'closed' ? 1 : 0) + (walls.back === 'closed' ? 1 : 0);
+  // Legacy enclosure enum, still read by the quote and older code paths.
+  cfg.enclosure = all.every((k) => k === 'closed') ? 'enclosed' : all.some((k) => k !== 'open' && k !== 'columns') ? 'partial' : 'open';
+
+  const legStyles: LegStyle[] = ['single', 'double', 'ladder'];
+  cfg.legChoice = legStyles.includes(cfg.legChoice as LegStyle) ? cfg.legChoice : 'single';
+  cfg.gutters = cfg.gutters === '4in' || cfg.gutters === '6in' ? cfg.gutters : 'none';
+  cfg.wainscotOrientation = cfg.wainscotOrientation === 'vertical' ? 'vertical' : 'horizontal';
 
   const style = catalog.roofStyles.find((r) => r.id === cfg.roofStyle);
   const build = catalog.roofBuilds.find((b) => b.id === cfg.roofBuild);
@@ -115,9 +145,10 @@ export function normalizeConfig(input: BuildingConfig, catalog: Catalog): Buildi
       : null;
   // Nothing to wainscot on an open building.
   if (cfg.enclosure === 'open') cfg.wainscotColorId = null;
+  cfg.gutterColorId = cfg.gutterColorId && catalog.colors.some((c) => c.id === cfg.gutterColorId)
+    ? cfg.gutterColorId
+    : cfg.trimColorId;
 
-  cfg.gableOverhang = clamp(Number(cfg.gableOverhang) || 0, 0, 4);
-  cfg.eaveOverhang = clamp(Number(cfg.eaveOverhang) || 0, 0, 4);
   cfg.discountPct = clamp(Number(cfg.discountPct) || 0, 0, 40);
 
   const taxStates = catalog.rules.taxByState ?? {};
@@ -125,7 +156,11 @@ export function normalizeConfig(input: BuildingConfig, catalog: Catalog): Buildi
   cfg.planItems = normalizePlanItems(cfg.planItems);
 
   const knownOptions = new Set(catalog.addOns.map((a) => a.id));
-  cfg.optionIds = (cfg.optionIds ?? []).filter((id) => knownOptions.has(id));
+  // Gutters are chosen as a size in the Roof panel; keep the matching add-on in
+  // step so pricing sees exactly one of them.
+  const gutterAddOn = { none: null, '4in': 'gutters', '6in': 'gutters-6' }[cfg.gutters];
+  cfg.optionIds = (cfg.optionIds ?? []).filter((id) => knownOptions.has(id) && id !== 'gutters' && id !== 'gutters-6');
+  if (gutterAddOn && knownOptions.has(gutterAddOn)) cfg.optionIds.push(gutterAddOn);
   const quantities: Record<string, number> = {};
   for (const id of cfg.optionIds) {
     const addOn = catalog.addOns.find((a) => a.id === id);
@@ -219,13 +254,14 @@ export function findIssues(cfg: BuildingConfig, catalog: Catalog): Issue[] {
   }
 
   // Doors on a wall that is not being built.
-  const present = wallsPresent(cfg);
+  // Openings are only built into fully closed walls.
+  const present = wallsTakeOpenings(cfg);
   const openWalls = WALL_IDS.filter((w) => !present[w]);
   const stranded = cfg.openings.filter((o) => openWalls.includes(o.wall)).length;
   if (stranded > 0) {
     issues.push({
       level: 'warning',
-      message: `${stranded} door/window ${stranded === 1 ? 'is' : 'are'} on an open side and will not be built or charged.`,
+      message: `${stranded} door/window ${stranded === 1 ? 'is' : 'are'} on a wall that is not fully closed and will not be built or charged.`,
     });
   }
 
