@@ -213,10 +213,13 @@ function Ground({ radius, scenery }: { radius: number; scenery: boolean }) {
       <planeGeometry args={[radius * 14, radius * 14]} />
       {/* Keyed so the swap builds a fresh material rather than leaving the
           grass map on the old one. */}
+      {/* Lambert, not Standard: the sky environment only lights Standard
+          materials, and on the ground it lit the grass from every direction
+          and bleached it. The grass colour was tuned for sun and hemisphere. */}
       {scenery ? (
-        <meshStandardMaterial key="grass" map={tex} roughness={1} metalness={0} />
+        <meshLambertMaterial key="grass" map={tex} />
       ) : (
-        <meshStandardMaterial key="plain" color="#c9cfd4" roughness={1} metalness={0} />
+        <meshLambertMaterial key="plain" color="#c9cfd4" />
       )}
     </mesh>
   );
@@ -227,7 +230,8 @@ function Ground({ radius, scenery }: { radius: number; scenery: boolean }) {
  * smaller shadow map. Decided once; it does not change while the page is open.
  */
 const HIGH_QUALITY =
-  typeof window === 'undefined' || !window.matchMedia?.('(pointer: coarse)').matches;
+  typeof window === 'undefined' ||
+  (!window.matchMedia?.('(pointer: coarse)').matches && !/[?&]fx=off\b/.test(window.location.search));
 
 /**
  * The sun, high over the front-left. The opening camera looks from the
@@ -238,29 +242,22 @@ const HIGH_QUALITY =
 const sunAt = (radius: number): [number, number, number] => [radius * -0.75, radius * 1.15, radius * 0.9];
 
 /**
- * What the paint and steel reflect. Rendered once into a cube map from the
- * same sky the viewer sees (or a softbox studio when scenery is off), so the
- * metal has something to show instead of rendering flat — no image download.
+ * What the paint and steel reflect: a neutral softbox studio rendered once into
+ * a cube map — no image download. Neutral on purpose; reflecting the visible
+ * sky tinted every roof and slab blue. The ground below picks up grass green
+ * outdoors so undersides do not reflect white.
  */
-function Reflections({ radius, scenery }: { radius: number; scenery: boolean }) {
+function Reflections({ scenery }: { scenery: boolean }) {
   return (
-    <Environment key={scenery ? 'sky' : 'studio'} resolution={128} frames={1} environmentIntensity={0.55}>
-      {scenery ? (
-        <>
-          <Sky sunPosition={sunAt(radius)} turbidity={5} rayleigh={1.4} />
-          {/* Grass below the horizon, so undersides pick up green, not sky. */}
-          <mesh position={[0, -2, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-            <circleGeometry args={[400, 32]} />
-            <meshBasicMaterial color="#56653f" side={THREE.DoubleSide} />
-          </mesh>
-        </>
-      ) : (
-        <>
-          <color attach="background" args={['#d4d9de']} />
-          <Lightformer form="rect" intensity={2.2} position={[0, 12, 0]} rotation={[Math.PI / 2, 0, 0]} scale={[30, 30, 1]} />
-          <Lightformer form="rect" intensity={0.8} position={[16, 4, 8]} rotation={[0, -Math.PI / 2, 0]} scale={[20, 6, 1]} />
-        </>
-      )}
+    <Environment key={scenery ? 'outdoor' : 'studio'} resolution={128} frames={1} environmentIntensity={0.35}>
+      <color attach="background" args={['#9da2a6']} />
+      <Lightformer form="rect" intensity={2.4} position={[0, 12, 0]} rotation={[Math.PI / 2, 0, 0]} scale={[30, 30, 1]} />
+      <Lightformer form="rect" intensity={0.9} position={[-16, 5, 10]} rotation={[0, Math.PI / 2, 0]} scale={[24, 6, 1]} />
+      <Lightformer form="rect" intensity={0.5} position={[16, 4, -8]} rotation={[0, -Math.PI / 2, 0]} scale={[20, 5, 1]} />
+      <mesh position={[0, -2, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <circleGeometry args={[400, 32]} />
+        <meshBasicMaterial color={scenery ? '#4b5638' : '#8d9296'} side={THREE.DoubleSide} />
+      </mesh>
     </Environment>
   );
 }
@@ -270,9 +267,11 @@ function Lighting({ radius }: { radius: number }) {
   const extent = radius * 1.4;
   return (
     <>
-      {/* The environment now supplies most of the fill; these just lift the
-          shade a touch so walls facing away from the sun stay readable. */}
-      <hemisphereLight args={['#c4dcf5', '#6d7d58', 0.45]} />
+      {/* The fill is v1's; the environment is kept low and is there for
+          reflections — as the main fill it lit everything evenly from every
+          side with a blue cast, and the scene read washed out. */}
+      <hemisphereLight args={['#c4dcf5', '#6d7d58', 0.55]} />
+      <ambientLight intensity={0.15} />
       <directionalLight
         ref={ref}
         position={sunAt(radius)}
@@ -576,7 +575,7 @@ export default function Scene({
       ) : (
         <color attach="background" args={['#e4e9ee']} />
       )}
-      <Reflections radius={radius} scenery={layers.scenery} />
+      <Reflections scenery={layers.scenery} />
       <Lighting radius={radius} />
       <Ground radius={radius} scenery={layers.scenery} />
       <Building cfg={cfg} catalog={catalog} geo={geo} frameOnly={frameOnly} />
@@ -597,7 +596,19 @@ export default function Scene({
         <EffectComposer multisampling={4}>
           {/* Ambient occlusion: shading where surfaces meet — under eaves, in
               corners, inside the frame. Radius is in feet. */}
-          <N8AO aoRadius={3} distanceFalloff={1.2} intensity={2.2} quality="medium" />
+          <N8AO
+            ref={(pass) => {
+              // N8AO converts to sRGB itself unless told not to, and the
+              // composer converts again at the end — a double conversion that
+              // washes everything out. The React wrapper does not pass this
+              // option through, so set it on the pass.
+              if (pass) (pass as unknown as { configuration: { gammaCorrection: boolean } }).configuration.gammaCorrection = false;
+            }}
+            aoRadius={3}
+            distanceFalloff={1.2}
+            intensity={2.2}
+            quality="medium"
+          />
           {/* The composer renders off-screen, which skips the renderer's own
               tone mapping; without this the image comes out washed out. */}
           <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
