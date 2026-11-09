@@ -1,9 +1,11 @@
-# Build and publish the configurator to GitHub Pages on every push to master.
+# Build and publish the configurator to GitHub Pages on every push to master
+# or v2. master is served at the site root, the v2 branch under /v2/, so the
+# two can be compared side by side. Keep this file the same on both branches.
 name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [master]
+    branches: [master, v2]
   workflow_dispatch:
 
 permissions:
@@ -20,20 +22,44 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: master
+          path: v1
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
-      - run: npm run typecheck
-      - run: npm run build
+          cache-dependency-path: v1/package-lock.json
+      - name: Build master (site root)
+        working-directory: v1
+        run: npm ci && npm run typecheck && npm run build
         env:
           BASE_PATH: /${{ github.event.repository.name }}/
           VITE_FEEDBACK_URL: ${{ github.server_url }}/${{ github.repository }}/issues/new?template=feedback.yml
+
+      - name: Check for a v2 branch
+        id: v2
+        run: |
+          if git ls-remote --exit-code --heads "${{ github.server_url }}/${{ github.repository }}" v2 >/dev/null; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.v2.outputs.exists == 'true'
+        with:
+          ref: v2
+          path: v2
+      - name: Build v2 (/v2/)
+        if: steps.v2.outputs.exists == 'true'
+        working-directory: v2
+        run: npm ci && npm run typecheck && npm run build && cp -r dist ../v1/dist/v2
+        env:
+          BASE_PATH: /${{ github.event.repository.name }}/v2/
+          VITE_FEEDBACK_URL: ${{ github.server_url }}/${{ github.repository }}/issues/new?template=feedback.yml
+
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: dist
+          path: v1/dist
 
   deploy:
     needs: build
