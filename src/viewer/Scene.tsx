@@ -3,7 +3,9 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { Html, Line, OrbitControls, Sky } from '@react-three/drei';
+import { ContactShadows, Environment, Html, Lightformer, Line, OrbitControls, Sky } from '@react-three/drei';
+import { EffectComposer, N8AO, ToneMapping } from '@react-three/postprocessing';
+import { ToneMappingMode } from 'postprocessing';
 import * as THREE from 'three';
 import type { BuildingConfig, Catalog, PlanItem } from '../core/types';
 import type { BuildingGeometry } from '../core/geometry';
@@ -220,19 +222,64 @@ function Ground({ radius, scenery }: { radius: number; scenery: boolean }) {
   );
 }
 
+/**
+ * Phones and tablets get the cheaper look: no ambient-occlusion pass and a
+ * smaller shadow map. Decided once; it does not change while the page is open.
+ */
+const HIGH_QUALITY =
+  typeof window === 'undefined' || !window.matchMedia?.('(pointer: coarse)').matches;
+
+/**
+ * The sun, high over the front-left. The opening camera looks from the
+ * front-right, so one face is in sun, one in shade, and the shadow falls where
+ * it can be seen — lit head-on, every face looked the same and the building
+ * read flat.
+ */
+const sunAt = (radius: number): [number, number, number] => [radius * -0.75, radius * 1.15, radius * 0.9];
+
+/**
+ * What the paint and steel reflect. Rendered once into a cube map from the
+ * same sky the viewer sees (or a softbox studio when scenery is off), so the
+ * metal has something to show instead of rendering flat — no image download.
+ */
+function Reflections({ radius, scenery }: { radius: number; scenery: boolean }) {
+  return (
+    <Environment key={scenery ? 'sky' : 'studio'} resolution={128} frames={1} environmentIntensity={0.55}>
+      {scenery ? (
+        <>
+          <Sky sunPosition={sunAt(radius)} turbidity={5} rayleigh={1.4} />
+          {/* Grass below the horizon, so undersides pick up green, not sky. */}
+          <mesh position={[0, -2, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+            <circleGeometry args={[400, 32]} />
+            <meshBasicMaterial color="#56653f" side={THREE.DoubleSide} />
+          </mesh>
+        </>
+      ) : (
+        <>
+          <color attach="background" args={['#d4d9de']} />
+          <Lightformer form="rect" intensity={2.2} position={[0, 12, 0]} rotation={[Math.PI / 2, 0, 0]} scale={[30, 30, 1]} />
+          <Lightformer form="rect" intensity={0.8} position={[16, 4, 8]} rotation={[0, -Math.PI / 2, 0]} scale={[20, 6, 1]} />
+        </>
+      )}
+    </Environment>
+  );
+}
+
 function Lighting({ radius }: { radius: number }) {
   const ref = useRef<THREE.DirectionalLight>(null);
   const extent = radius * 1.4;
   return (
     <>
-      <hemisphereLight args={['#c4dcf5', '#6d7d58', 0.62]} />
-      <ambientLight intensity={0.22} />
+      {/* The environment now supplies most of the fill; these just lift the
+          shade a touch so walls facing away from the sun stay readable. */}
+      <hemisphereLight args={['#c4dcf5', '#6d7d58', 0.45]} />
       <directionalLight
         ref={ref}
-        position={[radius * 1.1, radius * 1.45, radius * 0.75]}
-        intensity={2.1}
+        position={sunAt(radius)}
+        intensity={2.4}
         castShadow
-        shadow-mapSize={[2048, 2048]}
+        shadow-mapSize={HIGH_QUALITY ? [4096, 4096] : [2048, 2048]}
+        shadow-radius={4}
         shadow-bias={-0.0008}
         shadow-camera-near={1}
         shadow-camera-far={radius * 8}
@@ -241,8 +288,6 @@ function Lighting({ radius }: { radius: number }) {
         shadow-camera-top={extent}
         shadow-camera-bottom={-extent}
       />
-      {/* A dim fill from the opposite side keeps shaded walls readable. */}
-      <directionalLight position={[-radius, radius * 0.6, -radius * 0.8]} intensity={0.35} />
     </>
   );
 }
@@ -472,8 +517,9 @@ function Capture({ onReady }: { onReady?: (fn: () => string) => void }) {
   useEffect(() => {
     if (!onReady) return;
     onReady(() => {
-      // Render on demand so the buffer is guaranteed fresh at capture time.
-      gl.render(scene, camera);
+      // The frame loop runs continuously and the buffer is preserved, so the
+      // last frame is current. A fresh gl.render here would skip the
+      // ambient-occlusion pass and capture a flatter image than on screen.
       return gl.domElement.toDataURL('image/png');
     });
   }, [gl, scene, camera, onReady]);
@@ -516,23 +562,47 @@ export default function Scene({
 
   return (
     <Canvas
-      shadows
+      shadows="soft"
       dpr={[1, 2]}
       gl={{ antialias: true, preserveDrawingBuffer: true }}
       camera={{ fov: FOV, near: 0.5, far: 4000, position: [radius * 0.6, radius * 0.4, radius * 0.72] }}
       onCreated={({ gl }) => {
         gl.toneMapping = THREE.ACESFilmicToneMapping;
-        gl.toneMappingExposure = 1.05;
+        gl.toneMappingExposure = 0.95;
       }}
     >
       {layers.scenery ? (
-        <Sky sunPosition={[radius, radius * 1.3, radius * 0.6]} turbidity={5} rayleigh={1.4} />
+        <Sky sunPosition={sunAt(radius)} turbidity={5} rayleigh={1.4} />
       ) : (
         <color attach="background" args={['#e4e9ee']} />
       )}
+      <Reflections radius={radius} scenery={layers.scenery} />
       <Lighting radius={radius} />
       <Ground radius={radius} scenery={layers.scenery} />
       <Building cfg={cfg} catalog={catalog} geo={geo} frameOnly={frameOnly} />
+      {/* A soft dark pool where the building meets the ground. Baked once per
+          design (frames={1}) and re-baked when the design changes. */}
+      <ContactShadows
+        key={`${b.minX},${b.maxX},${b.minZ},${b.maxZ},${geo.metrics.peakHeight},${frameOnly}`}
+        position={[0, 0.005, 0]}
+        scale={radius * 1.1}
+        far={Math.max(4, geo.metrics.peakHeight * 0.6)}
+        blur={2.4}
+        opacity={frameOnly ? 0.25 : 0.5}
+        resolution={1024}
+        frames={1}
+        color="#1d2418"
+      />
+      {HIGH_QUALITY && (
+        <EffectComposer multisampling={4}>
+          {/* Ambient occlusion: shading where surfaces meet — under eaves, in
+              corners, inside the frame. Radius is in feet. */}
+          <N8AO aoRadius={3} distanceFalloff={1.2} intensity={2.2} quality="medium" />
+          {/* The composer renders off-screen, which skips the renderer's own
+              tone mapping; without this the image comes out washed out. */}
+          <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
+        </EffectComposer>
+      )}
       {layers.equipment && items.length > 0 && <Equipment items={items} fits={fits} />}
       {layers.dimensions && !inside && <Dimensions cfg={cfg} geo={geo} />}
       {layers.dimensions && inside && <InsideDimensions geo={geo} />}

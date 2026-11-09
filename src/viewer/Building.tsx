@@ -555,10 +555,9 @@ function Frame({ members }: { members: BuildingGeometry['frame'] }) {
     // The instance count is fixed at construction, so remount when it changes.
     <instancedMesh key={members.length} ref={ref} args={[undefined, undefined, members.length]} castShadow receiveShadow>
       <boxGeometry args={[1, 1, 1]} />
-      {/* Low metalness on purpose: there is no environment map in the scene,
-          and a high-metalness surface with nothing to reflect renders black. */}
-      {/* White so the per-instance colour is the colour. */}
-      <meshStandardMaterial color="#ffffff" metalness={0.18} roughness={0.52} />
+      {/* Galvanized tube: properly metallic now the scene has an environment
+          map to reflect. White so the per-instance colour is the colour. */}
+      <meshStandardMaterial color="#ffffff" metalness={0.6} roughness={0.42} />
     </instancedMesh>
   );
 }
